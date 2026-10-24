@@ -1,4 +1,4 @@
-<!DOCTYPE html><html lang="it"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"><title>Simulatore solargrafia v26</title>
+<!DOCTYPE html><html lang="it"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"><title>Simulatore solargrafia v27</title>
 <style>
 :root{--bg:#f6f5f2;--fg:#1d1d1b;--mut:#6b6a66;--card:#fff;--bd:#d8d6cf;--ac:#b4510f;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
 @media(prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#15151a;--fg:#ecebe6;--mut:#9a988f;--card:#1e1e25;--bd:#33333c;--ac:#f0a060}}
@@ -13,23 +13,30 @@ input[type=range]{width:100%;accent-color:var(--ac)}select{width:100%;padding:5p
 canvas{display:block;border:1px solid var(--bd);background:#0b0b0f}#c1{max-width:100%;height:auto;max-height:84vh}
 main>.card:first-child{position:sticky;top:8px;max-height:calc(100vh - 16px);overflow:auto;align-self:start}button{padding:5px 9px;border:1px solid var(--bd);border-radius:6px;background:var(--bg);color:var(--fg);cursor:pointer;font:inherit}.m{color:var(--mut);font-size:12px}summary{cursor:pointer;margin-top:12px}#info{white-space:pre-line;font-size:12.5px}
 
-/* Telefono: l'anteprima resta in alto e visibile mentre si scorrono i comandi */
+/* Telefono: l'anteprima viene spostata in cima dal JS (vedi sotto) e resta visibile mentre si scorrono i comandi */
 @media(max-width:800px){
  main{display:flex;flex-direction:column;gap:10px;padding:8px}
- main>div:nth-child(2),.row{display:contents}
- main>.card:first-child{position:static;max-height:none;overflow:visible;order:1}
- #pv{order:0;position:sticky;top:0;z-index:20;padding:8px;max-height:44vh;overflow:hidden;box-shadow:0 4px 14px rgba(0,0,0,.35)}
+ main>.card:first-child{position:static;max-height:none;overflow:visible}
+ main>div{min-width:0}
+ .row{display:block}.row>.card{margin-bottom:10px}
+ #pv{align-self:stretch;order:0;position:sticky;top:0;z-index:20;padding:8px;box-shadow:0 4px 14px rgba(0,0,0,.35)}
  #pv h2{margin:0 0 4px;font-size:13px}
  #pv .m{font-size:11px;line-height:1.3}
- #pv>.m:not(#nt):not(#rt),#pv p{display:none}
+ #pv>p,#pv>.m:not(#nt):not(#rt){display:none}
  #pv #nt:empty,#pv #rt:empty{display:none}
- #pv .cv{overflow:hidden;display:flex;justify-content:center}
- #pv #c1{max-width:100%;max-height:34vh;width:auto;height:auto}
- main>div:nth-child(2) .row>.card:not(#pv){order:2}
- main>div:nth-child(2)>.card{order:3;margin-top:0!important}
+ #pv #c1{max-height:34vh;width:auto;max-width:100%}
+ #pv .cv{display:flex;justify-content:center;overflow:hidden}
+}
+/* Telefono in orizzontale: comandi a sinistra, anteprima fissa a destra */
+@media(max-width:800px) and (orientation:landscape){
+ main{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);align-items:start;gap:8px}
+ #pv{grid-column:2;grid-row:1 / span 3;max-height:calc(100vh - 8px)}
+ #pv #c1{max-height:calc(100vh - 60px)}
+ main>.card:nth-child(2){grid-column:1;grid-row:1}
+ main>div{grid-column:1;grid-row:2}
 }
 </style></head><body><main>
-<div class="card"><h1>Simulatore solargrafia</h1>
+<div class="card"><h1>Simulatore solargrafia <span style="font-size:11px;color:var(--mut);font-weight:normal">v27</span></h1>
 <label style="margin:4px 0 8px"><span>Lingua</span><select id="lang" style="width:auto"><option value="it">Italiano</option><option value="en">English</option><option value="es">Español</option><option value="fr">Français</option><option value="de">Deutsch</option></select></label><div class="m" id="sub"></div>
 <label><span>Forma</span><select id="sh"><option value="0">Piatta (carta rettangolare)</option><option value="4">Piatta (carta rotonda)</option><option value="1">Semicilindrica</option><option value="2" selected>Cilindrica (foro sulla parete)</option><option value="3">Anamorfica (foro sull’asse)</option></select></label>
 <details open><summary><b>Periodo di esposizione</b></summary>
@@ -460,5 +467,18 @@ window.__mo.observe(document.body,{childList:true,subtree:true,characterData:tru
 function setLang(l){LANG=I18N["Lingua"][l]?l:"it";$("lang").value=LANG;try{localStorage.setItem("solar_lang",LANG)}catch(e){}applyLang()}
 $("lang").onchange=e=>setLang(e.target.value);
 try{const saved=localStorage.getItem("solar_lang");if(saved)setLang(saved)}catch(e){}
+</script>
+<script>
+(function(){
+ const pv=document.getElementById("pv");if(!pv)return;
+ const home={parent:pv.parentNode,next:pv.nextSibling};
+ const mq=window.matchMedia("(max-width:800px)");
+ function place(){
+  if(mq.matches){const m=document.querySelector("main");if(pv.parentNode!==m){m.insertBefore(pv,m.firstChild)}}
+  else if(pv.parentNode!==home.parent){home.parent.insertBefore(pv,home.next)}
+ }
+ mq.addEventListener?mq.addEventListener("change",place):mq.addListener(place);
+ place();
+})();
 </script>
 </body></html>

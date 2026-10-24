@@ -38,6 +38,7 @@ label{display:block;margin:10px 0 4px;color:var(--mut);font-size:14px}
 #hud{position:absolute;left:0;right:0;top:0;padding:max(8px,env(safe-area-inset-top)) 12px 8px;background:linear-gradient(#000a,#0000);text-shadow:0 1px 3px #000;pointer-events:none}
 #hud b{font-size:22px;font-variant-numeric:tabular-nums}
 #hudSun{font-size:13px;color:#ffe08a}
+#hudTime{font-size:13px;color:#cfe8ff}
 #hud .w{color:var(--ac);font-size:13px}
 #bar{position:absolute;left:0;right:0;bottom:0;display:flex;gap:6px;padding:8px 8px max(10px,env(safe-area-inset-bottom));background:linear-gradient(#0000,#000b)}
 #bar button{flex:1;padding:8px 2px;font-size:13px;background:#0f1a24cc}
@@ -105,7 +106,7 @@ label{display:block;margin:10px 0 4px;color:var(--mut);font-size:14px}
   <video id="vid" playsinline muted autoplay></video>
   <canvas id="gl" hidden></canvas>
   <canvas id="cv"></canvas>
-  <div id="hud"><b id="hudMain">--</b><div id="hudSun"></div><div id="hudAim"></div><div class="w" id="hudWarn"></div></div>
+  <div id="hud"><b id="hudMain">--</b><div id="hudSun"></div><div id="hudTime"></div><div id="hudAim"></div><div class="w" id="hudWarn"></div></div>
 
   <canvas id="mini"></canvas>
   <button id="miniX" type="button" data-close="mini" aria-label="Chiudi">✕</button>
@@ -129,13 +130,17 @@ label{display:block;margin:10px 0 4px;color:var(--mut);font-size:14px}
     <p class="note" data-i="northHelp">Dalla bussola del telefono al nord geografico: in Salento la declinazione è di circa +4°.</p>
     <label for="anaH" data-i="anaLbl">Analemmi: ore da mostrare (es. 6, 9, 12.5)</label>
     <input id="anaH" type="text" inputmode="decimal">
-    <label for="anaTz" data-i="tzLbl">Ora degli analemmi riferita a</label>
-    <select id="anaTz">
-      <option value="solar" data-i="tzSolar">Ora solare media del luogo (senza ora legale)</option>
-      <option value="utc" data-i="tzUtc">UTC (uguale in tutto il mondo)</option>
-      <option value="local" data-i="tzLocal">Orologio del telefono (con ora legale)</option>
-    </select>
-    <p class="note" id="tzNote"></p>
+    <p class="note" id="tzInfo" style="color:var(--fg)"></p>
+    <details><summary data-i="tzAdv">Orario: impostazioni avanzate</summary>
+      <label for="anaTz" data-i="tzLbl">Ora degli analemmi riferita a</label>
+      <select id="anaTz">
+        <option value="clock" data-i="tzClock">Ora dell'orologio nel luogo della camera</option>
+        <option value="utc" data-i="tzUtc">UTC (uguale in tutto il mondo)</option>
+      </select>
+      <label for="anaZone" data-i="tzZoneLbl">Fuso orario del luogo (nome, es. Europe/Rome; vuoto = automatico)</label>
+      <input id="anaZone" type="text" autocapitalize="off" autocomplete="off" spellcheck="false" placeholder="automatico">
+      <p class="note" id="tzNote"></p>
+    </details>
     <div class="row">
       <button id="anaDef" type="button">6–18</button>
       <button id="anaNone" type="button" data-i="anaNone">Nessuno</button>
@@ -243,7 +248,7 @@ main>.card:first-child{position:sticky;top:8px;max-height:calc(100vh - 16px);ove
 
 
 <button id="ng" type="button" style="margin-top:8px">Mostra il negativo</button>
-<details open><summary><b>Analemmi</b></summary><div style="display:flex;gap:6px;align-items:center;margin:6px 0 0;flex-wrap:wrap"><span class="m">Passo:</span><select id="ans" style="width:auto"><option value="60" selected>ogni ora</option><option value="30">ogni 30 minuti</option><option value="15">ogni 15 minuti</option></select><button id="ana" type="button">Tutti</button><button id="ann" type="button">Nessuno</button></div><div id="anc" style="display:flex;flex-wrap:wrap;gap:4px;margin:6px 0"></div><div id="vt" class="m" style="color:var(--ac);font-weight:600;margin:6px 0"></div><label style="display:flex;gap:6px;align-items:center"><input type="checkbox" id="adt">Scrivi la data sui punti (ogni 2 settimane)</label><p class="m">Posizione del sole alla stessa ora solare media in ogni giorno dell’esposizione (con l’equazione del tempo): disegna la «figura a 8». Non dipende da fuso orario e ora legale.</p></details>
+<details open><summary><b>Analemmi</b></summary><div style="display:flex;gap:6px;align-items:center;margin:6px 0 0;flex-wrap:wrap"><span class="m">Passo:</span><select id="ans" style="width:auto"><option value="60" selected>ogni ora</option><option value="30">ogni 30 minuti</option><option value="15">ogni 15 minuti</option></select><button id="ana" type="button">Tutti</button><button id="ann" type="button">Nessuno</button></div><div id="anc" style="display:flex;flex-wrap:wrap;gap:4px;margin:6px 0"></div><div id="vt" class="m" style="color:var(--ac);font-weight:600;margin:6px 0"></div><label style="display:flex;gap:6px;align-items:center"><input type="checkbox" id="adt">Scrivi la data sui punti (ogni 2 settimane)</label><p class="m">Posizione del sole alla stessa ora in ogni giorno dell’esposizione, nel riferimento orario scelto (di norma l’orologio del luogo, ora legale compresa): disegna la «figura a 8». Quando cambia l’ora legale la curva si interrompe.</p></details>
 <details open><summary><b>Time-lapse</b></summary><div style="display:flex;gap:6px;flex-wrap:wrap;margin:6px 0;align-items:center"><button id="tp" type="button">▶ Avvia</button><button id="tr" type="button">⏺ Registra video</button><select id="tdur" style="width:auto"><option value="5">5 s</option><option value="10" selected>10 s</option><option value="20">20 s</option></select></div><input type="range" id="tsl" min="0" max="365" value="365" style="width:100%"><div class="m" id="tlb"></div><label style="display:flex;gap:6px;align-items:center;margin-top:6px"><input type="checkbox" id="tsh" checked>Mostra traccia solare</label></details><p class="m" id="st"></p></div>
 <div>
 <div class="row"><div class="card" id="pv"><h2>Solargrafia simulata (positivo)</h2><div class="m" id="nt" style="color:var(--ac)"></div><div class="m" id="rt"></div><div class="cv"><div style="position:relative;width:fit-content;max-width:100%"><canvas id="c1"></canvas><canvas id="c2" style="position:absolute;left:1px;top:1px;pointer-events:none;border:0;background:none;opacity:0;width:calc(100% - 2px);height:calc(100% - 2px)"></canvas></div></div><p class="m">Positivo simulato dopo scansione. Il foro e la larghezza del negativo si calcolano automaticamente in base alla geometria della camera, finché lasci attivi gli automatismi. Il cielo e le nuvole usano un profilo climatico indicativo automatico in base alla latitudine; non è una previsione meteorologica locale. Cambiando annata cambia la sequenza sintetica delle nuvole. Raddrizzata: alto in alto, destra a destra.</p></div>
@@ -553,8 +558,10 @@ eot=n=>{const g=2*PI/365*(n-1);return 229.18*(.000075+.001868*cos(g)-.032077*sin
 // posizione sul negativo del sole all'ora solare media T (ore) del giorno N, con equazione del tempo e rifrazione
 function sunPix(N,T,B,G){const L=V.lat*rad,h=15*(T-12)+eot(N)/4,dc=DCL(N)+(DCL(N+1)-DCL(N))*h/360,sD=sin(dc),cD=cos(dc),Hh=h*rad,ch=cos(Hh),U0=sin(L)*sD+cos(L)*cD*ch,E0=-cD*sin(Hh),N0=cos(L)*sD-sin(L)*cD*ch,e0=Math.asin(Math.max(-1,Math.min(1,U0)))/rad,rf=e0>-1?1.02/Math.tan((e0+10.3/(e0+5.11))*rad)/60:0,ea=(e0+rf)*rad,k=cos(ea)/Math.max(1e-9,cos(e0*rad)),U=sin(ea),E=E0*k,Nn=N0*k;
 if(U<=sin(prof(Math.atan2(E,Nn)))||!trace(E*B.x[0]+Nn*B.x[1]+U*B.x[2],E*B.u[0]+Nn*B.u[1]+U*B.u[2],E*B.z[0]+Nn*B.z[1]+U*B.z[2]))return null;return[(o.X+G.Xm)*G.sc,(G.y1-o.Y)*G.sc]}
-function drawAn(cx,G,B){if(!AN.size)return;cx.font="bold 12px system-ui,sans-serif";[...AN].sort((a,b)=>a-b).forEach((T,j)=>{const col=`hsl(${(j*53+25)%360} 95% 60%)`;cx.strokeStyle=col;cx.fillStyle=col;cx.lineWidth=1.3;let pv=null,lp=null;
-DYS.slice(0,TLi).forEach((k,i)=>{const p=sunPix(dN(k),T,B,G);if(p){if(pv&&hyp(p[0]-pv[0],p[1]-pv[1])<G.W/3){cx.beginPath();cx.moveTo(pv[0],pv[1]);cx.lineTo(p[0],p[1]);cx.stroke()}if(i%7==0){cx.beginPath();cx.arc(p[0],p[1],2.6,0,2*PI);cx.fill()}if(ADT&&i%14==0){cx.font="10px system-ui,sans-serif";cx.fillText(new Date(Date.parse($("d0").value)+k*864e5).toLocaleDateString("it",{day:"numeric",month:"short",timeZone:"UTC"}),p[0]+5,p[1]+3);cx.font="bold 12px system-ui,sans-serif"}lp=p}pv=p});if(lp)cx.fillText(fmtT(T),lp[0]+6,lp[1]-6)})}
+// ora scelta -> ora solare media di quel giorno, secondo il riferimento dell'AR (orologio del luogo o UTC); senza AR resta l'ora solare media
+const tEff=(k,T)=>{const f=window.__arTime;return f?f(new Date(Date.parse($("d0").value)+k*864e5).toISOString().slice(0,10),T):T};
+function drawAn(cx,G,B){if(!AN.size)return;cx.font="bold 12px system-ui,sans-serif";[...AN].sort((a,b)=>a-b).forEach((T,j)=>{const col=`hsl(${(j*53+25)%360} 95% 60%)`;cx.strokeStyle=col;cx.fillStyle=col;cx.lineWidth=1.3;let pv=null,lp=null,pT=null;
+DYS.slice(0,TLi).forEach((k,i)=>{const Te=tEff(k,T);if(pT!==null&&Math.abs((Te-T)-pT)>.01)pv=null;pT=Te-T;const p=sunPix(dN(k),Te,B,G);if(p){if(pv&&hyp(p[0]-pv[0],p[1]-pv[1])<G.W/3){cx.beginPath();cx.moveTo(pv[0],pv[1]);cx.lineTo(p[0],p[1]);cx.stroke()}if(i%7==0){cx.beginPath();cx.arc(p[0],p[1],2.6,0,2*PI);cx.fill()}if(ADT&&i%14==0){cx.font="10px system-ui,sans-serif";cx.fillText(new Date(Date.parse($("d0").value)+k*864e5).toLocaleDateString("it",{day:"numeric",month:"short",timeZone:"UTC"}),p[0]+5,p[1]+3);cx.font="bold 12px system-ui,sans-serif"}lp=p}pv=p});if(lp)cx.fillText(fmtT(T),lp[0]+6,lp[1]-6)})}
 function tlSeek(i){if(!TL)return;if(i<TLi){TL.reset();TLi=0}while(TLi<i)TL.add(TL.DAYS[TLi++]);TL.paint();$("tsl").value=TLi;$("tlb").textContent=new Date(Date.parse($("d0").value)+Math.max(0,TLi-1)*864e5).toLocaleDateString("it",{day:"numeric",month:"long",year:"numeric",timeZone:"UTC"})}
 function tlPlay(rec){if(!TL)return;const N=TL.DAYS.length,st=Math.max(1,Math.ceil(N/(+$("tdur").value*30)));let r=null,ch=[];
 if(rec&&window.MediaRecorder){try{r=new MediaRecorder($("c1").captureStream(30),{mimeType:"video/webm"});r.ondataavailable=e=>ch.push(e.data);r.onstop=()=>{const a=document.createElement("a");a.href=URL.createObjectURL(new Blob(ch,{type:"video/webm"}));a.download="solargrafia_timelapse.webm";a.click()}}catch(e){r=null}}else if(rec){alert("Questo browser non supporta la registrazione video: usa Chrome, Edge o Firefox.");return}
@@ -626,14 +633,15 @@ const anc=$("anc");function anSty(b){const on=AN.has(+b.dataset.t);b.style.borde
 function anBtns(step){[...AN].forEach(T=>{if(Math.round(T*60)%step)AN.delete(T)});anc.innerHTML="";for(let m=360;m<=1080;m+=step){const T=m/60,b=document.createElement("button");b.type="button";b.textContent=fmtT(T);b.dataset.t=T;b.onclick=()=>{AN.has(T)?AN.delete(T):AN.add(T);anSty(b);TL&&TL.paint()};anSty(b);anc.append(b)}}
 $("ans").onchange=e=>{anBtns(+e.target.value);TL&&TL.paint()};$("ana").onclick=()=>{[...anc.children].forEach(b=>{AN.add(+b.dataset.t);anSty(b)});TL&&TL.paint()};$("ann").onclick=()=>{AN.clear();[...anc.children].forEach(anSty);TL&&TL.paint()};anBtns(60);
 // minuto esatto in cui l'analemma è verticale: i due estremi (solstizio d'estate e d'inverno del periodo) hanno la stessa x nell'immagine
+function clkTxt(T){const i=window.__arTimeInfo,w=x=>fmtHMS(((x%24)+24)%24);if(!i)return w(T)+" di ora solare media del luogo";const c=T-i.lon/15+(i.mode==="utc"?0:i.std/60);return i.mode==="utc"?w(c)+" UTC":i.dst!=null?w(c)+" (ora dell’orologio; con l’ora legale: "+w(c+(i.dst-i.std)/60)+")":w(c)+" (ora dell’orologio)"}
 function vertTime(G,B){const e=$("vt");if(!e)return;const ds=DYS.map(dN);if(!ds.length){e.textContent="";return}let a=ds[0],b=ds[0];ds.forEach(N=>{if(DCL(N)>DCL(a))a=N;if(DCL(N)<DCL(b))b=N});
 if(DCL(a)-DCL(b)<.7){e.textContent="Analemma verticale: serve un periodo che comprenda sia il solstizio d’estate sia quello d’inverno.";return}
 const k=V.rl>=45||V.rl<=-45?1:0,f=T=>{const p=sunPix(a,T,B,G),q=sunPix(b,T,B,G);return p&&q?p[k]-q[k]:NaN};
 let best=null,mn=null,pT=0,pf=NaN;for(let s=-1440;s<=1440;s++){const T=12+s/360,v=f(T);if(!isNaN(v)&&(!mn||Math.abs(v)<mn[1]))mn=[T,Math.abs(v)];if(!isNaN(pf)&&!isNaN(v)&&pf*v<=0&&(!best||Math.abs(T-12)<Math.abs(best[1]-12)))best=[pT,T];pT=T;pf=v}
-if(!best){e.textContent=mn?`Analemma verticale: con questa camera non diventa mai perfettamente verticale; la minima inclinazione è alle ${fmtHMS(mn[0])} (ora solare media).`:"Analemma verticale: il sole non cade sulla carta a quest’ora.";return}
+if(!best){e.textContent=mn?`Analemma verticale: con questa camera non diventa mai perfettamente verticale; la minima inclinazione è alle ${clkTxt(mn[0])}.`:"Analemma verticale: il sole non cade sulla carta a quest’ora.";return}
 let lo=best[0],hi=best[1],fl=f(lo);for(let i=0;i<45;i++){const c=(lo+hi)/2,fc=f(c);if(fl*fc<=0)hi=c;else{lo=c;fl=fc}}
 const T=(lo+hi)/2;let t12="";if(!k){const p=sunPix(a,12,B,G),q=sunPix(b,12,B,G);if(p&&q){const ang=Math.atan2(p[0]-q[0],q[1]-p[1])/rad;t12=` A mezzogiorno solare (12:00:00) è inclinato di ${fm(Math.abs(ang),2)}° (la parte alta pende a ${ang>0?"destra":"sinistra"}).`}}
-e.textContent=`Analemma verticale alle ${fmtHMS(T)} di ora solare media del luogo (i due solstizi sono allineati in verticale nell’immagine).${t12}`}
+e.textContent=`Analemma verticale alle ${clkTxt(T)}; i due solstizi sono allineati in verticale nell’immagine.${t12}`}
 $("adt").onchange=e=>{ADT=e.target.checked;TL&&TL.paint()};$("tsh").onchange=e=>{SHT=e.target.checked;TL&&TL.paint()};$("tsl").oninput=e=>{TLrun=false;cancelAnimationFrame(TLr);$("tp").textContent="▶ Avvia";tlSeek(+e.target.value)};
 $("tp").onclick=()=>{if(TLrun){TLrun=false;cancelAnimationFrame(TLr);$("tp").textContent="▶ Avvia"}else tlPlay(false)};$("tr").onclick=()=>tlPlay(true);
 window.__arBoot=true;   /* il calcolo lo avvia l'AR */
@@ -677,9 +685,15 @@ DYN_EN.push(
 );
 const DYN_EN_STR = [
  ["Positivo simulato dopo scansione. Il foro e la larghezza del negativo si calcolano automaticamente in base alla geometria della camera, finché lasci attivi gli automatismi. Il cielo e le nuvole usano un profilo climatico indicativo automatico in base alla latitudine; non è una previsione meteorologica locale. Cambiando annata cambia la sequenza sintetica delle nuvole. Raddrizzata: alto in alto, destra a destra.", "Simulated positive after scanning. The pinhole and the width of the negative are calculated automatically from the camera geometry, as long as you leave the automatic options on. The sky and clouds use an indicative climate profile chosen automatically from the latitude; it is not a local weather forecast. Changing the year changes the synthetic cloud sequence. Straightened: top at the top, right on the right."],
- ["Posizione del sole alla stessa ora solare media in ogni giorno dell’esposizione (con l’equazione del tempo): disegna la «figura a 8». Non dipende da fuso orario e ora legale.", "Position of the sun at the same mean solar time on each day of the exposure (with the equation of time): it draws the “figure 8”. It does not depend on time zone or daylight saving."],
+ ["Posizione del sole alla stessa ora in ogni giorno dell’esposizione, nel riferimento orario scelto (di norma l’orologio del luogo, ora legale compresa): disegna la «figura a 8». Quando cambia l’ora legale la curva si interrompe.", "Position of the sun at the same time on each day of the exposure, in the chosen time reference (normally the clock of the place, daylight saving included): it draws the “figure 8”. The curve breaks when daylight saving changes."],
  ["Con il foro dove l’hai messo, calcola l’inclinazione della camera perché il sole più alto (solstizio d’estate) tocchi il bordo basso del negativo", "With the pinhole where you put it, calculates the camera tilt so that the highest sun (summer solstice) touches the lower edge of the negative"],
- ["Come sopra, con 5 mm di margine", "As above, with 5 mm of margin"]
+ ["Come sopra, con 5 mm di margine", "As above, with 5 mm of margin"],
+ ["Analemma verticale alle ", "Vertical analemma at "],
+ [" (ora dell’orologio; con l’ora legale: ", " (clock time; with daylight saving: "],
+ [" (ora dell’orologio)", " (clock time)"],
+ [" di ora solare media del luogo", " mean solar time of the place"],
+ ["; i due solstizi sono allineati in verticale nell’immagine", "; the two solstices line up vertically in the image"],
+ ["; la minima inclinazione è alle ", "; the minimum tilt is at "]
 ];
 function trDyn(t){ if(LANG !== "en") return t; let r = t; for(const [a, b] of DYN_EN_STR) if(r.indexOf(a) >= 0) r = r.split(a).join(b); for(const [re, to] of DYN_EN) r = r.replace(re, to); if(r !== t) r = r.replace(/(\d),(\d)/g, "$1.$2"); return r; }
 function trKey(t){const it=REV[t]||t;return I18N[it]?it:null}
@@ -746,7 +760,7 @@ const TXT = {
   north:"Correzione del nord (°, positiva verso est)",northHelp:"Dalla bussola del telefono al nord geografico: in Salento la declinazione è di circa +4°.",
   az:"Az",incl:"Incl",alt:"Alt",sunNow:"Sole ora",below:"sotto l'orizzonte",
   anaLbl:"Analemmi: ore da mostrare (es. 6, 9, 12.5)",anaHelp:"Una curva per ogni ora scelta, con l'ora in alto e un'etichetta per mese (giorno 21). Le parti sotto l'orizzonte non sono mostrate. Valori tra 0 e 24, separati da virgole.",anaNone:"Nessuno",
-  camera:"Stenopeica",simTitle:"Camera stenopeica e simulatore",sunTitle:"Visibilità al sole",hcLbl:"Linee con contorno scuro (più leggibili)",lwLbl:"Spessore delle linee",vbLbl:"Luminosità dell'immagine della fotocamera",expLbl:"Esposizione della fotocamera",sunHelp:"Sotto il sole l'immagine è molto chiara: abbassa la luminosità (e l'esposizione, se disponibile) per far risaltare le linee.",qualLbl:"Qualità dell'immagine della solargrafia",qN:"Normale (più veloce)",qH:"Alta (calcolo più lento)",sunOff:"sole",flatLbl:"Orizzonte piatto, senza case né paesaggio (solargrafia realistica)",tzLbl:"Ora degli analemmi riferita a",tzSolar:"Ora solare media del luogo (senza ora legale)",tzUtc:"UTC (uguale in tutto il mondo)",tzLocal:"Orologio del telefono (con ora legale)",tzNoteSolar:"Ora solare media: dipende solo dalla longitudine e non cambia con l'ora legale. È l'ora usata dal simulatore.",tzNoteUtc:"Attenzione: l'UTC non è l'ora del tuo orologio. In Italia è 1 ora indietro in inverno e 2 ore indietro in estate.",tzNoteLocal:"Attenzione: usa il fuso e l'ora legale del telefono. Se non sei nel paese in cui scatti, scegli un'altra opzione.",tzShortUtc:"UTC",tzShortLocal:"orologio",holeCardLbl:"Direzione del foro (punto cardinale)",holeCustom:"Altro valore (vedi gradi)",card16:["Nord","Nord-Nord-Est","Nord-Est","Est-Nord-Est","Est","Est-Sud-Est","Sud-Est","Sud-Sud-Est","Sud","Sud-Sud-Ovest","Sud-Ovest","Ovest-Sud-Ovest","Ovest","Ovest-Nord-Ovest","Nord-Ovest","Nord-Nord-Ovest"],card16s:["N","NNE","NE","ENE","E","ESE","SE","SSE","S","SSO","SO","OSO","O","ONO","NO","NNO"],realTitle:"Solargrafia realistica",viewLbl:"Cosa mostrare",vLines:"Solo linee",vBoth:"Linee + solargrafia realistica",vReal:"Solo solargrafia realistica",
+  camera:"Stenopeica",simTitle:"Camera stenopeica e simulatore",sunTitle:"Visibilità al sole",hcLbl:"Linee con contorno scuro (più leggibili)",lwLbl:"Spessore delle linee",vbLbl:"Luminosità dell'immagine della fotocamera",expLbl:"Esposizione della fotocamera",sunHelp:"Sotto il sole l'immagine è molto chiara: abbassa la luminosità (e l'esposizione, se disponibile) per far risaltare le linee.",qualLbl:"Qualità dell'immagine della solargrafia",qN:"Normale (più veloce)",qH:"Alta (calcolo più lento)",sunOff:"sole",flatLbl:"Orizzonte piatto, senza case né paesaggio (solargrafia realistica)",tzLbl:"Ora degli analemmi riferita a",tzSolar:"Ora solare media del luogo (senza ora legale)",tzUtc:"UTC (uguale in tutto il mondo)",tzLocal:"Orologio del telefono (con ora legale)",tzNoteSolar:"Ora solare media: dipende solo dalla longitudine e non cambia con l'ora legale. È l'ora usata dal simulatore.",tzNoteUtc:"Attenzione: l'UTC non è l'ora del tuo orologio. In Italia è 1 ora indietro in inverno e 2 ore indietro in estate.",tzNoteLocal:"Attenzione: usa il fuso e l'ora legale del telefono. Se non sei nel paese in cui scatti, scegli un'altra opzione.",tzShortUtc:"UTC",tzAdv:"Orario: impostazioni avanzate",tzClock:"Ora dell'orologio nel luogo della camera",tzZoneLbl:"Fuso orario del luogo (nome, es. Europe/Rome; vuoto = automatico)",tzNoteClock:"È l'ora che segna l'orologio nel luogo della camera, con l'ora legale. Il fuso si ricava dalle coordinate, non dal telefono. Quando cambia l'ora legale la curva si interrompe.",tzNoteUtc2:"Attenzione: UTC non è l'ora dell'orologio. Nel luogo scelto l'orologio è avanti rispetto a UTC di {d}.",tzInfoClock:"Orario: orologio di {z} · {o}",tzInfoUtc:"Orario: UTC (non è l'ora dell'orologio)",tzWin:"in inverno",tzDstW:"con l'ora legale",tzNoDst:"nessun cambio d'ora nel periodo",tzAnd:"e",tzSrcauto:"fuso trovato online",tzSrccache:"fuso già salvato",tzSrcmanual:"fuso scelto da te",tzSrcest:"fuso STIMATO dalla longitudine (senza rete non posso saperlo: scrivilo in «avanzate»)",tzSrcwait:"cerco il fuso…",tzNoLoc:"Imposta il luogo per conoscere il fuso orario.",tzNowClock:"Ora",tzNowUtc:"Ora UTC",tzDstShort:"ora legale",tzShortLocal:"orologio",holeCardLbl:"Direzione del foro (punto cardinale)",holeCustom:"Altro valore (vedi gradi)",card16:["Nord","Nord-Nord-Est","Nord-Est","Est-Nord-Est","Est","Est-Sud-Est","Sud-Est","Sud-Sud-Est","Sud","Sud-Sud-Ovest","Sud-Ovest","Ovest-Sud-Ovest","Ovest","Ovest-Nord-Ovest","Nord-Ovest","Nord-Nord-Ovest"],card16s:["N","NNE","NE","ENE","E","ESE","SE","SSE","S","SSO","SO","OSO","O","ONO","NO","NNO"],realTitle:"Solargrafia realistica",viewLbl:"Cosa mostrare",vLines:"Solo linee",vBoth:"Linee + solargrafia realistica",vReal:"Solo solargrafia realistica",
   alphaLbl:"Opacità della solargrafia",holeLbl:"oppure in gradi (0 nord, 90 est, 180 sud, 270 ovest)",aimHere:"Usa la direzione del telefono",openSim:"Forma, misure, foro…",
   calc:"Calcolo della solargrafia in corso… può richiedere qualche secondo.",axis:"asse della camera stenopeica",aimLbl:"Foro",aimOk:"Puntamento corretto ✓",simErr:"Il simulatore non si è caricato.",ready:"Solargrafia pronta.",simFail:"Calcolo non riuscito: ",cards:["N","NE","E","SE","S","SO","O","NO"]},
  en:{lang:"Language",title:"Solargraphy AR",sub:"Point your phone: see the sun's path for the chosen period over the camera view.",
@@ -770,7 +784,7 @@ const TXT = {
   north:"North correction (°, positive toward east)",northHelp:"From the phone compass to true north: in Salento declination is about +4°.",
   az:"Az",incl:"Tilt",alt:"Alt",sunNow:"Sun now",below:"below the horizon",
   anaLbl:"Analemmas: hours to show (e.g. 6, 9, 12.5)",anaHelp:"One curve per chosen hour, with the hour on top and one label per month (day 21). Parts below the horizon are not shown. Values from 0 to 24, comma separated.",anaNone:"None",
-  camera:"Pinhole cam",simTitle:"Pinhole camera and simulator",sunTitle:"Visibility in sunlight",hcLbl:"Lines with a dark outline (easier to read)",lwLbl:"Line thickness",vbLbl:"Camera image brightness",expLbl:"Camera exposure",sunHelp:"In direct sun the image is very bright: lower the brightness (and the exposure, if available) so the lines stand out.",qualLbl:"Solargraph image quality",qN:"Normal (faster)",qH:"High (slower calculation)",sunOff:"sun",flatLbl:"Flat horizon, no houses or landscape (realistic solargraph)",tzLbl:"Analemma hours refer to",tzSolar:"Local mean solar time (no daylight saving)",tzUtc:"UTC (the same everywhere)",tzLocal:"Phone clock (with daylight saving)",tzNoteSolar:"Mean solar time: it depends only on longitude and does not change with daylight saving. It is the time used by the simulator.",tzNoteUtc:"Note: UTC is not your clock time. In Italy it is 1 hour behind in winter and 2 hours behind in summer.",tzNoteLocal:"Note: this uses the phone's time zone and daylight saving. If you are not in the country where you take the photo, choose another option.",tzShortUtc:"UTC",tzShortLocal:"clock",holeCardLbl:"Pinhole direction (compass point)",holeCustom:"Other value (see degrees)",card16:["North","North-northeast","Northeast","East-northeast","East","East-southeast","Southeast","South-southeast","South","South-southwest","Southwest","West-southwest","West","West-northwest","Northwest","North-northwest"],card16s:["N","NNE","NE","ENE","E","ESE","SE","SSE","S","SSW","SW","WSW","W","WNW","NW","NNW"],realTitle:"Realistic solargraph",viewLbl:"What to show",vLines:"Lines only",vBoth:"Lines + realistic solargraph",vReal:"Realistic solargraph only",
+  camera:"Pinhole cam",simTitle:"Pinhole camera and simulator",sunTitle:"Visibility in sunlight",hcLbl:"Lines with a dark outline (easier to read)",lwLbl:"Line thickness",vbLbl:"Camera image brightness",expLbl:"Camera exposure",sunHelp:"In direct sun the image is very bright: lower the brightness (and the exposure, if available) so the lines stand out.",qualLbl:"Solargraph image quality",qN:"Normal (faster)",qH:"High (slower calculation)",sunOff:"sun",flatLbl:"Flat horizon, no houses or landscape (realistic solargraph)",tzLbl:"Analemma hours refer to",tzSolar:"Local mean solar time (no daylight saving)",tzUtc:"UTC (the same everywhere)",tzLocal:"Phone clock (with daylight saving)",tzNoteSolar:"Mean solar time: it depends only on longitude and does not change with daylight saving. It is the time used by the simulator.",tzNoteUtc:"Note: UTC is not your clock time. In Italy it is 1 hour behind in winter and 2 hours behind in summer.",tzNoteLocal:"Note: this uses the phone's time zone and daylight saving. If you are not in the country where you take the photo, choose another option.",tzShortUtc:"UTC",tzAdv:"Time: advanced settings",tzClock:"Clock time at the camera's location",tzZoneLbl:"Time zone of the place (name, e.g. Europe/Rome; empty = automatic)",tzNoteClock:"This is the time shown by a clock at the camera's location, daylight saving included. The zone comes from the coordinates, not from the phone. The curve breaks when daylight saving changes.",tzNoteUtc2:"Note: UTC is not clock time. At the chosen place the clock is ahead of UTC by {d}.",tzInfoClock:"Time: clock of {z} · {o}",tzInfoUtc:"Time: UTC (not clock time)",tzWin:"in winter",tzDstW:"with daylight saving",tzNoDst:"no clock change in the period",tzAnd:"and",tzSrcauto:"zone found online",tzSrccache:"saved zone",tzSrcmanual:"zone chosen by you",tzSrcest:"zone ESTIMATED from longitude (offline I cannot know: type it under “advanced”)",tzSrcwait:"looking up the zone…",tzNoLoc:"Set the location to know the time zone.",tzNowClock:"Time",tzNowUtc:"UTC time",tzDstShort:"daylight saving",tzShortLocal:"clock",holeCardLbl:"Pinhole direction (compass point)",holeCustom:"Other value (see degrees)",card16:["North","North-northeast","Northeast","East-northeast","East","East-southeast","Southeast","South-southeast","South","South-southwest","Southwest","West-southwest","West","West-northwest","Northwest","North-northwest"],card16s:["N","NNE","NE","ENE","E","ESE","SE","SSE","S","SSW","SW","WSW","W","WNW","NW","NNW"],realTitle:"Realistic solargraph",viewLbl:"What to show",vLines:"Lines only",vBoth:"Lines + realistic solargraph",vReal:"Realistic solargraph only",
   alphaLbl:"Solargraph opacity",holeLbl:"or in degrees (0 north, 90 east, 180 south, 270 west)",aimHere:"Use the phone direction",openSim:"Shape, size, pinhole…",
   calc:"Computing the solargraph… it may take a few seconds.",axis:"pinhole camera axis",aimLbl:"Pinhole",aimOk:"Aim is correct ✓",simErr:"The simulator did not load.",ready:"Solargraph ready.",simFail:"Calculation failed: ",cards:["N","NE","E","SE","S","SW","W","NW"]}
 };
@@ -830,7 +844,7 @@ function readLoc(){
   if(!isFinite(la) || !isFinite(lo) || Math.abs(la) > 90 || Math.abs(lo) > 180) return null;
   return {lat: la, lon: lo};
 }
-function saveLoc(){ sv("ar_lat", $("lat").value); sv("ar_lon", $("lon").value); }
+function saveLoc(){ sv("ar_lat", $("lat").value); sv("ar_lon", $("lon").value); try{ zoneSoon(); }catch(e){} }
 $("lat").oninput = $("lon").oninput = saveLoc;
 $("btnGps").onclick = () => {
   const m = $("locMsg"); m.className = "note";
@@ -877,7 +891,83 @@ let VIEW = ld("ar_view", "lines"), RALPHA = (+ld("ar_ralpha", "60") || 60)/100; 
 let SIM = null, SIMW = null, RZ = null, simDirty = true, simOpen = false, simQ = [], simFail = "", CAM = {az: 0, el: 0};
 let rcv = null, rcx = null, rim = null;
 let HC = ld("ar_hc", "1") === "1", LWM = (+ld("ar_lw", "150") || 150)/100, VB = +ld("ar_vb", "75") || 75, QUAL = ld("ar_q", "1") === "1.6" ? 1.6 : 1;
-let FLAT = ld("ar_flat", "1") === "1", ANA_TZ = ld("ar_anatz", "solar"), CLEAN = null, anSig = "";
+let FLAT = ld("ar_flat", "1") === "1", ANA_TZ = (ld("ar_anatz", "clock") === "utc" ? "utc" : "clock"), CLEAN = null, anSig = "";
+
+/* ---------- Fuso orario del luogo della camera (mai quello del telefono) ---------- */
+let ZONE = {name: null, src: "none"}, zKey = "", zTimer = 0, zNowT = 0;   // src: auto | cache | manual | est | wait | none
+const DTF = {};
+function okZone(n){ try{ new Intl.DateTimeFormat("en-US", {timeZone: n}); return true; }catch(e){ return false; } }
+/* scarto dall'UTC (minuti) del fuso in quell'istante, ora legale compresa: lo calcola il browser, senza librerie */
+function offMin(zone, ms){
+  const f = DTF[zone] || (DTF[zone] = new Intl.DateTimeFormat("en-US", {timeZone: zone, hourCycle: "h23", year: "numeric", month: "numeric", day: "numeric", hour: "numeric", minute: "numeric", second: "numeric"}));
+  const p = {}; f.formatToParts(new Date(ms)).forEach(x => { p[x.type] = +x.value; });
+  return (Date.UTC(p.year, p.month - 1, p.day, p.hour % 24, p.minute, p.second) - Math.floor(ms/1000)*1000)/60000;
+}
+/* ora dell'orologio h (decimale) del giorno y-m-d (m da 0) nel fuso -> istante UTC; due passate per gestire il cambio d'ora */
+function wallToUtc(zone, y, m, d, h){
+  const g = Date.UTC(y, m, d) + Math.round(h*60)*60000; let u = g - offMin(zone, g)*60000; u = g - offMin(zone, u)*60000; return u;
+}
+const fmtOff = m => "UTC" + (m < 0 ? "−" : "+") + Math.floor(Math.abs(m)/60) + (Math.abs(m)%60 ? ":" + String(Math.abs(m)%60).padStart(2, "0") : "");
+const fmtHrs = m => fm(Math.abs(m)/60, Math.abs(m)%60 ? 1 : 0) + " h";
+const isDst = (zone, ms) => { const y = new Date(ms).getUTCFullYear(), a = offMin(zone, Date.UTC(y, 0, 1)), b = offMin(zone, Date.UTC(y, 6, 1)); return a !== b && offMin(zone, ms) === Math.max(a, b); };
+/* fuso in uso: quello scritto a mano (se valido), altrimenti quello trovato per le coordinate */
+function zoneName(){ const m = ($("anaZone").value || "").trim(); if(m && okZone(m)) return m; return ZONE.name; }
+function zoneSrc(){ const m = ($("anaZone").value || "").trim(); return m && okZone(m) ? "manual" : ZONE.src; }
+/* scarti nel periodo scelto, dal minore (ora solare) al maggiore (ora legale) */
+function zoneOffsets(){
+  const z = zoneName(); if(!z || !$("d0").value || !$("d1").value) return null;
+  const a = Date.parse($("d0").value + "T12:00:00Z"), b = Date.parse($("d1").value + "T12:00:00Z"); if(!(b >= a)) return null;
+  const o = new Set([offMin(z, a), offMin(z, b)]); for(let t = a; t < b; t += 864e5*10) o.add(offMin(z, t));
+  return [...o].sort((x, y) => x - y);
+}
+function zoneSoon(){ clearTimeout(zTimer); zTimer = setTimeout(findZone, 700); }
+/* Open-Meteo ricava il fuso dalle coordinate (gratuito, senza chiave). Senza rete: ultimo fuso salvato per quel luogo, altrimenti stima dalla longitudine, dichiarata come tale */
+async function findZone(){
+  const la = readLoc();
+  if(!la){ ZONE = {name: null, src: "none"}; zKey = ""; zoneChanged(); return; }
+  const key = la.lat.toFixed(2) + "," + la.lon.toFixed(2);
+  if(key === zKey && ZONE.name) return; zKey = key;
+  let c = null; try{ c = JSON.parse(ld("ar_tzc", "null")); }catch(e){}
+  if(c && c.key === key && okZone(c.name)){ ZONE = {name: c.name, src: "cache"}; zoneChanged(); return; }
+  ZONE = {name: null, src: "wait"}; zoneChanged();
+  try{
+    const ctl = new AbortController(), to = setTimeout(() => ctl.abort(), 8000);
+    const r = await fetch("https://api.open-meteo.com/v1/forecast?latitude=" + la.lat.toFixed(4) + "&longitude=" + la.lon.toFixed(4) + "&current=temperature_2m&forecast_days=1&timezone=auto", {signal: ctl.signal});
+    clearTimeout(to); const j = await r.json();
+    if(key !== zKey) return;                       // nel frattempo il luogo è cambiato
+    if(!j || !okZone(j.timezone)) throw new Error("zona");
+    sv("ar_tzc", JSON.stringify({key, name: j.timezone})); ZONE = {name: j.timezone, src: "auto"};
+  }catch(e){
+    if(key !== zKey) return;
+    const n = Math.round(la.lon/15); ZONE = {name: n === 0 ? "UTC" : "Etc/GMT" + (n > 0 ? "-" : "+") + Math.abs(n), src: "est"}; zKey = "";   // zKey vuoto: riprova alla prossima modifica
+  }
+  zoneChanged();
+}
+function zoneChanged(){ tzNote(); try{ buildAnalemmas(readLoc()); }catch(e){} pushTime(); }
+/* Funzione data al simulatore: (data ISO, ora scelta) -> ora solare media di quel giorno. La formula del sole non cambia, cambia solo l'istante */
+function timeFn(){
+  const la = readLoc(); if(!la) return null;
+  const zone = ANA_TZ === "clock" ? zoneName() : null; if(ANA_TZ === "clock" && !zone) return null;
+  const cache = new Map();
+  return (iso, T) => {
+    const k = iso + "|" + T, c = cache.get(k); if(c !== undefined) return c;
+    const r = !zone ? T + la.lon/15 : T - offMin(zone, wallToUtc(zone, +iso.slice(0, 4), +iso.slice(5, 7) - 1, +iso.slice(8, 10), T))/60 + la.lon/15;
+    cache.set(k, r); return r;
+  };
+}
+function setTimeVars(){
+  if(!SIMW) return; const la = readLoc(), offs = zoneOffsets();
+  SIMW.__arTime = timeFn();
+  SIMW.__arTimeInfo = la && (ANA_TZ === "utc" || offs) ? {mode: ANA_TZ, lon: la.lon, std: offs ? offs[0] : 0, dst: offs && offs.length > 1 ? offs[offs.length - 1] : null} : null;
+}
+function pushTime(){ if(!SIMW) return; try{ setTimeVars(); if(SIMW.ARX) SIMW.ARX.sched(); }catch(e){} }
+/* riga fissa sullo schermo AR: ora attuale e riferimento */
+function timeLine(now){
+  if(ANA_TZ === "utc") return t("tzNowUtc") + " " + new Date(now).toISOString().slice(11, 19) + " UTC";
+  const z = zoneName(); if(!z) return "";
+  const f = DTF["h:" + z + LANG] || (DTF["h:" + z + LANG] = new Intl.DateTimeFormat(LANG === "it" ? "it-IT" : "en-GB", {timeZone: z, hour: "2-digit", minute: "2-digit", second: "2-digit"}));
+  return t("tzNowClock") + " " + f.format(now) + " · " + z + " · " + fmtOff(offMin(z, now)) + (isDst(z, now) ? " (" + t("tzDstShort") + ")" : "") + (zoneSrc() === "est" ? " ⚠" : "");
+}
 let GLS = null, lutTok = 0, lutBusy = false;   // GLS: renderer WebGL della solargrafia realistica (null = non provato, false = non disponibile)
 const ANA_COLS = ["#ff6fd8", "#6fb4ff", "#7dff9a", "#ffa86f", "#c79bff", "#ffe36f", "#6ff5e6"];
 let SHOW = ld("ar_show", "1") === "1", MODE = ld("ar_mode", "month");
@@ -1086,9 +1176,25 @@ $("vb").value = VB; applyVB(); $("vb").oninput = e => { VB = +e.target.value; ap
 $("qual").value = String(QUAL); 
 $("qual").onchange = e => { QUAL = +e.target.value; sv("ar_q", e.target.value); if(SIMW) SIMW.__arQ = QUAL; if(SIMW && SIMW.ARX){ simDirty = true; SIMW.ARX.sched(); } };
 /* Riferimento orario degli analemmi */
-const tzNote = () => { $("tzNote").textContent = t(ANA_TZ === "utc" ? "tzNoteUtc" : ANA_TZ === "local" ? "tzNoteLocal" : "tzNoteSolar"); };
-$("anaTz").value = ANA_TZ; tzNote();
-$("anaTz").onchange = e => { ANA_TZ = e.target.value; sv("ar_anatz", ANA_TZ); tzNote(); buildAnalemmas(readLoc()); };
+const tzNote = () => {
+  const z = zoneName(), offs = zoneOffsets(), src = zoneSrc(), info = $("tzInfo");
+  let a = "", n = "";
+  if(!readLoc()) a = t("tzNoLoc");
+  else if(ANA_TZ === "utc") a = t("tzInfoUtc");
+  else if(!z) a = t("tzInfoClock").replace("{z}", "…").replace("{o}", t("tzSrc" + (src === "none" ? "wait" : src)));
+  else {
+    const o = !offs ? "" : offs.length > 1 ? fmtOff(offs[0]) + " " + t("tzWin") + ", " + fmtOff(offs[offs.length - 1]) + " " + t("tzDstW") : fmtOff(offs[0]) + " (" + t("tzNoDst") + ")";
+    a = t("tzInfoClock").replace("{z}", z).replace("{o}", o + " · " + t("tzSrc" + src));
+  }
+  if(ANA_TZ === "utc" && offs) n = t("tzNoteUtc2").replace("{d}", offs.length > 1 ? fmtHrs(offs[0]) + " " + t("tzWin") + " " + t("tzAnd") + " " + fmtHrs(offs[offs.length - 1]) + " " + t("tzDstW") : fmtHrs(offs[0]));
+  else if(ANA_TZ === "clock") n = t("tzNoteClock");
+  info.textContent = a; info.classList.toggle("err", src === "est" && ANA_TZ === "clock"); $("tzNote").textContent = n;
+};
+$("anaTz").value = ANA_TZ;
+$("anaTz").onchange = e => { ANA_TZ = e.target.value; sv("ar_anatz", ANA_TZ); zoneChanged(); };
+$("anaZone").value = ld("ar_zone", "");
+$("anaZone").oninput = e => { sv("ar_zone", e.target.value.trim()); zoneChanged(); };
+tzNote(); zoneSoon();
 /* Orizzonte piatto (il paesaggio inventato del simulatore non serve per capire dove sta il sole) */
 $("flat").checked = FLAT;
 $("flat").onchange = e => { FLAT = e.target.checked; sv("ar_flat", FLAT ? "1" : "0"); if(SIMW){ SIMW.__arFlat = FLAT; if(SIMW.ARX){ simDirty = true; SIMW.ARX.sched(); } } };
@@ -1139,27 +1245,26 @@ $("btnCopy").onclick = async () => {
   setTimeout(() => { $("btnCopy").textContent = t("copy"); }, 1500);
 };
 
-/* ---------- Analemmi (ora solare media, come nel simulatore) ---------- */
+/* ---------- Analemmi: ora dell'orologio del luogo (predefinito) o UTC ---------- */
 function parseHours(s){
   return [...new Set(String(s).split(/[,;\s]+/).map(num).filter(h => isFinite(h) && h >= 0 && h <= 24))].sort((a, b) => a - b);
 }
 function buildAnalemmas(la){
   ANA = []; if(!la || !$("d0").value) return;
-  const a = Date.parse($("d0").value + "T00:00:00Z");
+  const a = Date.parse($("d0").value + "T00:00:00Z"), zone = ANA_TZ === "clock" ? zoneName() : null;
+  if(ANA_TZ === "clock" && !zone) return;                  // fuso non ancora noto: meglio nessuna curva che una curva sbagliata
   ANA_HOURS.forEach((h, k) => {
-    const n = 366, v = new Float32Array(3*n), lbl = [];
+    const n = 366, v = new Float32Array(3*n), brk = new Uint8Array(n), lbl = []; let po = null;
     for(let i = 0; i < n; i++){
-      const day = a + i*864e5;
-      // solar: ora solare media h (UTC = h*60 - 4*lon minuti; sunPos aggiunge l'equazione del tempo). utc: h è già UTC. local: h dell'orologio del telefono, con ora legale di quel giorno
-      let ms;
-      if(ANA_TZ === "utc") ms = day + h*3600000;
-      else if(ANA_TZ === "local"){ const d0 = new Date(day); ms = new Date(d0.getUTCFullYear(), d0.getUTCMonth(), d0.getUTCDate(), Math.floor(h), Math.round((h - Math.floor(h))*60)).getTime(); }
-      else ms = day + (h*60 - 4*la.lon)*60000;
+      const day = a + i*864e5, dt = new Date(day);
+      // clock: h è l'ora dell'orologio nel fuso del luogo, con l'ora legale di quel giorno. utc: h è già UTC. sunPos aggiunge da sé l'equazione del tempo
+      let ms; if(!zone) ms = day + h*3600000;
+      else { ms = wallToUtc(zone, dt.getUTCFullYear(), dt.getUTCMonth(), dt.getUTCDate(), h); const o = offMin(zone, ms); if(i && o !== po) brk[i] = 1; po = o; }   // brk: cambio d'ora legale, la curva si interrompe
       const s = sunPos(ms, la.lat, la.lon), az = s.az*rad, e = s.el*rad;
       v[3*i] = Math.cos(e)*Math.sin(az); v[3*i+1] = Math.cos(e)*Math.cos(az); v[3*i+2] = Math.sin(e);
-      if(new Date(day).getUTCDate() === 21) lbl.push({i, text: dateLabel(day)});
+      if(dt.getUTCDate() === 21) lbl.push({i, text: dateLabel(day)});
     }
-    ANA.push({v, n, lbl, col: ANA_COLS[k % ANA_COLS.length], h});
+    ANA.push({v, n, lbl, brk, col: ANA_COLS[k % ANA_COLS.length], h});
   });
 }
 /* Traccia il percorso corrente; con "alto contrasto" prima un contorno scuro più largo, poi la linea colorata */
@@ -1172,6 +1277,7 @@ function anaPath(an, A, fl){
   const v = an.v, r = A.r, u = A.u, f = A.f; let pen = false;
   cx.beginPath();
   for(let i = 0; i < an.n; i++){
+    if(an.brk[i]) pen = false;                                // cambio d'ora legale: niente linea attraverso il salto
     const x = v[3*i], y = v[3*i+1], z = v[3*i+2];
     if(z < 0){ pen = false; continue; }
     const zc = x*f[0] + y*f[1] + z*f[2];
@@ -1201,7 +1307,7 @@ function drawAnalemmas(A, fl){
       cx.strokeText(L.text, p[0], p[1] - 8); cx.fillText(L.text, p[0], p[1] - 8);
     }
   }
-  // l'ora solare media di ogni analemma, in un'etichetta sul punto più alto visibile sullo schermo
+  // l'ora di ogni analemma (nel riferimento scelto), in un'etichetta sul punto più alto visibile sullo schermo
   cx.font = "800 14px system-ui,sans-serif"; cx.textAlign = "center";
   for(const an of ANA){
     let best = -1, bz = -2, bp = null;
@@ -1211,7 +1317,7 @@ function drawAnalemmas(A, fl){
       best = i; bz = z; bp = p;
     }
     if(best < 0) continue;
-    const txt = fmtHour(an.h) + (ANA_TZ === "utc" ? " " + t("tzShortUtc") : ANA_TZ === "local" ? " " + t("tzShortLocal") : ""), w = cx.measureText(txt).width + 14, x = bp[0], y = bp[1] - 30;
+    const txt = fmtHour(an.h) + (ANA_TZ === "utc" ? " " + t("tzShortUtc") : ""), w = cx.measureText(txt).width + 14, x = bp[0], y = bp[1] - 30;
     cx.beginPath(); cx.arc(bp[0], bp[1], 4, 0, 2*Math.PI); cx.fillStyle = an.col; cx.fill(); cx.lineWidth = 1.5; cx.strokeStyle = "#000"; cx.stroke();
     cx.beginPath(); cx.roundRect(x - w/2, y - 11, w, 22, 11); cx.fillStyle = "#000c"; cx.fill(); cx.lineWidth = 2; cx.strokeStyle = an.col; cx.stroke();
     cx.fillStyle = "#fff"; cx.fillText(txt, x, y + 1);
@@ -1227,6 +1333,7 @@ function ensureSim(){
     SIMW = fr.contentWindow;
     if(!SIMW.ARX){ simFail = t("simErr"); return; }
     SIMW.__arGrab = simGrab; SIMW.__arDirty = () => { simDirty = true; lutTok++; lutBusy = false; }; SIMW.__arQ = QUAL; SIMW.__arFlat = FLAT; SIMW.__arClean = (c2, G2) => { try{ CLEAN = c2.getImageData(0, 0, G2.W, G2.H); }catch(er){ CLEAN = null; } };
+    setTimeVars();
     pushToSim(true);
     simQ.splice(0).forEach(fn => { try{ fn(SIMW.ARX); }catch(e){} });
   });
@@ -1270,7 +1377,7 @@ function pullFromSim(){
   if(redo) buildArcs(readLoc());
   try{   // analemmi scelti nel simulatore: l'AR li disegna nitidi, come i suoi
     const set = [...X.AN].sort((p, q) => p - q), sig = set.join(",");
-    if(sig !== anSig){ anSig = sig; if(set.length){ ANA_HOURS = set; $("anaH").value = set.join(", "); sv("ar_ana", set.join(",")); if(ANA_TZ !== "solar"){ ANA_TZ = "solar"; $("anaTz").value = "solar"; sv("ar_anatz", "solar"); tzNote(); } buildAnalemmas(readLoc()); } }
+    if(sig !== anSig){ anSig = sig; if(set.length){ ANA_HOURS = set; $("anaH").value = set.join(", "); sv("ar_ana", set.join(",")); buildAnalemmas(readLoc()); } }
   }catch(er){}
   const h = $("holeAz"); if(h) h.value = +X.V.hd.toFixed(1); syncCard();
 }
@@ -1566,6 +1673,7 @@ function draw(){
   cx.moveTo(W/2 - 16, H/2); cx.lineTo(W/2 + 16, H/2); cx.moveTo(W/2, H/2 - 16); cx.lineTo(W/2, H/2 + 16); cx.stroke();
   // testi in alto e mini-mappa
   $("hudMain").textContent = t("az") + " " + fm(camAz) + "° " + t("cards")[Math.round(camAz/45) % 8] + "   " + t("incl") + " " + (camEl >= 0 ? "+" : "") + fm(camEl) + "°";
+  if(now - zNowT > 500){ zNowT = now; $("hudTime").textContent = HAVE_LOC ? timeLine(now) : ""; }
   $("hudSun").textContent = HAVE_LOC ? t("sunNow") + ": " + t("az") + " " + fm(sun.az) + "°  " + t("alt") + " " + fm(sun.el) + "°" + (sun.el < -0.8 ? " (" + t("below") + ")" : "") : "";
   $("miniX").hidden = mini.hidden;
   drawMini(camAz, camEl, 2*Math.atan(W/2/fl)*deg, 2*Math.atan(H/2/fl)*deg, sun);
@@ -1599,6 +1707,7 @@ function diagText(){
     "periodo: " + $("d0").value + " → " + $("d1").value + ", giorni calcolati: " + ARCS.length + ", modo: " + MODE + (SHOW ? "" : " (spento)"),
     "sole ora (NOAA): " + (s ? "az " + fm(s.az, 2) + "  alt " + fm(s.el, 2) : "-"),
     "ora UTC: " + new Date().toISOString(),
+    "orario: " + (ANA_TZ === "utc" ? "UTC" : "orologio di " + (zoneName() || "(fuso non noto)") + " [" + zoneSrc() + "]"),
     "simulatore: " + (SIM ? (simDirty ? "in calcolo/non pronto" : "pronto") + (SIMW && SIMW.ARX ? ", forma " + SIMW.ARX.S + ", foro az " + fm(SIMW.ARX.V.hd) + " incl " + fm(SIMW.ARX.V.tl, 0) : "") + (simFail ? " (" + simFail + ")" : "") : "non caricato") + ", vista: " + VIEW,
     "solargrafia: " + (GLS ? "GPU (WebGL2), tabella " + (GLS.ok ? GLS.na + "x" + GLS.ne : "non pronta") : GLS === false ? "CPU (WebGL2 non disponibile" + (GL_ERR ? ": " + GL_ERR : "") + ")" : "non avviata") + ", qualità x" + QUAL,
     "lingua: " + LANG

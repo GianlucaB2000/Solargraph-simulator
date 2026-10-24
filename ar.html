@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Solargrafia AR</title>
-<!-- Solargrafia AR - passo 2 (versione di prova). Licenza MIT. -->
+<!-- Solargrafia AR - passo 3 (versione di prova). Licenza MIT. -->
 <style>
 :root{--bg:#0f1a24;--fg:#e8edf2;--mut:#93a3b3;--ac:#ffc83d;--ln:#7fd6e8;--bd:#2a3a4a}
 *{box-sizing:border-box}
@@ -55,7 +55,7 @@ label{display:block;margin:10px 0 4px;color:var(--mut);font-size:14px}
   </select>
   <h1 data-i="title">Solargrafia AR</h1>
   <p class="sub" data-i="sub">Punta il telefono: vedi il percorso del sole nel periodo scelto sopra la fotocamera.</p>
-  <p class="note" data-i="beta">Versione di prova (passo 2). Su iPhone la bussola è sperimentale.</p>
+  <p class="note" data-i="beta">Versione di prova (passo 3). Su iPhone la bussola è sperimentale.</p>
 
   <div class="box">
     <h2 data-i="loc">Posizione</h2>
@@ -139,7 +139,7 @@ const $ = id => document.getElementById(id), rad = Math.PI/180, deg = 180/Math.P
 /* ---------- Testi (aggiungere una lingua = aggiungere un blocco qui) ---------- */
 const TXT = {
  it:{lang:"Lingua",title:"Solargrafia AR",sub:"Punta il telefono: vedi il percorso del sole nel periodo scelto sopra la fotocamera.",
-  beta:"Versione di prova (passo 2). Su iPhone la bussola è sperimentale.",loc:"Posizione",gps:"Trova la mia posizione",lat:"Latitudine (°)",lon:"Longitudine (°)",
+  beta:"Versione di prova (passo 3). Su iPhone la bussola è sperimentale.",loc:"Posizione",gps:"Trova la mia posizione",lat:"Latitudine (°)",lon:"Longitudine (°)",
   locHelp:"Puoi anche scrivere le coordinate a mano (positiva a nord e a est).",start:"Avvia AR",
   period:"Periodo di esposizione",preset:"Scorciatoia",p1:"21 dic → 21 giu (6 mesi)",p2:"21 giu → 21 dic (6 mesi)",p3:"Anno intero (21 dic → 21 dic)",pc:"Personalizzato",d0:"Inizio",d1:"Fine",
   badPeriod:"Periodo non valido: la fine deve essere dopo l'inizio (massimo 3 anni).",
@@ -159,7 +159,7 @@ const TXT = {
   north:"Correzione del nord (°, positiva verso est)",northHelp:"Dalla bussola del telefono al nord geografico: in Salento la declinazione è di circa +4°. La taratura sul sole arriva nel passo 6.",
   az:"Az",incl:"Incl",alt:"Alt",sunNow:"Sole ora",below:"sotto l'orizzonte",cards:["N","NE","E","SE","S","SO","O","NO"]},
  en:{lang:"Language",title:"Solargraphy AR",sub:"Point your phone: see the sun's path for the chosen period over the camera view.",
-  beta:"Test version (step 2). On iPhone the compass is experimental.",loc:"Location",gps:"Find my location",lat:"Latitude (°)",lon:"Longitude (°)",
+  beta:"Test version (step 3). On iPhone the compass is experimental.",loc:"Location",gps:"Find my location",lat:"Latitude (°)",lon:"Longitude (°)",
   locHelp:"You can also type the coordinates by hand (positive north and east).",start:"Start AR",
   period:"Exposure period",preset:"Shortcut",p1:"Dec 21 → Jun 21 (6 months)",p2:"Jun 21 → Dec 21 (6 months)",p3:"Full year (Dec 21 → Dec 21)",pc:"Custom",d0:"Start",d1:"End",
   badPeriod:"Invalid period: the end must be after the start (3 years at most).",
@@ -277,6 +277,8 @@ $("d0").oninput = $("d1").oninput = () => { $("preset").value = "c"; sv("ar_pres
 
 /* ---------- Curve del sole del periodo ---------- */
 let ARCS = [], TODAY = null, LAT = 40, HAVE_LOC = false;
+let ANA = [], ANA_HOURS = [];   // analemmi: dichiarati qui, prima di ogni uso
+const ANA_COLS = ["#ff6fd8", "#6fb4ff", "#7dff9a", "#ffa86f", "#c79bff", "#ffe36f", "#6ff5e6"];
 let SHOW = ld("ar_show", "1") === "1", MODE = ld("ar_mode", "month");
 function dayArc(dayMs, lat, lon){   // un giorno: dal mezzogiorno solare -12 h a +12 h, un punto ogni 10 minuti, solo sopra l'orizzonte
   const noon = dayMs + 43200000 - lon/15*3600000, t0 = noon - 43200000, az = [], el = [];
@@ -473,8 +475,6 @@ $("btnCopy").onclick = async () => {
 };
 
 /* ---------- Analemmi (ora solare media, come nel simulatore) ---------- */
-let ANA = [], ANA_HOURS = [];
-const ANA_COLS = ["#ff6fd8", "#6fb4ff", "#7dff9a", "#ffa86f", "#c79bff", "#ffe36f", "#6ff5e6"];
 function parseHours(s){
   return [...new Set(String(s).split(/[,;\s]+/).map(num).filter(h => isFinite(h) && h >= 0 && h <= 24))].sort((a, b) => a - b);
 }

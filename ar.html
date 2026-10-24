@@ -4,9 +4,9 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Solargrafia AR</title>
-<!-- Solargrafia AR - passo 1 (versione di prova). Licenza MIT. -->
+<!-- Solargrafia AR - passo 2 (versione di prova). Licenza MIT. -->
 <style>
-:root{--bg:#0f1a24;--fg:#e8edf2;--mut:#93a3b3;--ac:#ffc83d;--ln:#7fd6e8;--bd:#2a3a4a;--ok:#5be28a}
+:root{--bg:#0f1a24;--fg:#e8edf2;--mut:#93a3b3;--ac:#ffc83d;--ln:#7fd6e8;--bd:#2a3a4a}
 *{box-sizing:border-box}
 [hidden]{display:none!important}
 html,body{margin:0;height:100%;background:var(--bg);color:var(--fg);font:16px/1.45 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
@@ -14,6 +14,7 @@ button,input,select{font:inherit;color:inherit}
 button{background:#1b2b3a;border:1px solid var(--bd);border-radius:10px;padding:10px 14px;min-height:44px}
 button.main{background:var(--ac);color:#1a1300;border-color:var(--ac);font-weight:700}
 input,select{background:#0b141c;border:1px solid var(--bd);border-radius:8px;padding:8px 10px;min-height:42px;width:100%}
+input[type=checkbox]{width:auto;min-height:0;margin-right:8px;transform:scale(1.3)}
 label{display:block;margin:10px 0 4px;color:var(--mut);font-size:14px}
 
 /* Schermata iniziale */
@@ -34,12 +35,14 @@ label{display:block;margin:10px 0 4px;color:var(--mut);font-size:14px}
 #cv{position:absolute;inset:0;width:100%;height:100%}
 #hud{position:absolute;left:0;right:0;top:0;padding:max(8px,env(safe-area-inset-top)) 12px 8px;background:linear-gradient(#000a,#0000);text-shadow:0 1px 3px #000;pointer-events:none}
 #hud b{font-size:22px;font-variant-numeric:tabular-nums}
+#hudSun{font-size:13px;color:#ffe08a}
 #hud .w{color:var(--ac);font-size:13px}
-#bar{position:absolute;left:0;right:0;bottom:0;display:flex;gap:8px;padding:8px 12px max(10px,env(safe-area-inset-bottom));background:linear-gradient(#0000,#000b)}
-#bar button{flex:1;background:#0f1a24cc}
-#panel{position:absolute;left:0;right:0;bottom:64px;margin:0 8px;padding:6px 14px 12px;background:#0f1a24ee;border:1px solid var(--bd);border-radius:12px;max-height:60%;overflow:auto}
-#diag{position:absolute;left:8px;right:8px;top:70px;bottom:70px;margin:0;padding:10px;background:#000d;color:#cfe;border-radius:10px;overflow:auto;font:12px/1.4 ui-monospace,Menlo,Consolas,monospace;white-space:pre-wrap}
-#diagBtns{position:absolute;right:14px;top:78px}
+#bar{position:absolute;left:0;right:0;bottom:0;display:flex;gap:6px;padding:8px 8px max(10px,env(safe-area-inset-bottom));background:linear-gradient(#0000,#000b)}
+#bar button{flex:1;padding:8px 4px;font-size:14px;background:#0f1a24cc}
+#mini{position:absolute;left:8px;bottom:calc(64px + env(safe-area-inset-bottom,0px));width:min(calc(100% - 16px),340px);height:96px;border:1px solid var(--bd);border-radius:8px;background:#0f1a24cc}
+#panel{position:absolute;left:0;right:0;bottom:calc(64px + env(safe-area-inset-bottom,0px));margin:0 8px;padding:6px 14px 12px;background:#0f1a24f0;border:1px solid var(--bd);border-radius:12px;max-height:65%;overflow:auto}
+#diag{position:absolute;left:8px;right:8px;top:100px;bottom:70px;margin:0;padding:10px;background:#000d;color:#cfe;border-radius:10px;overflow:auto;font:12px/1.4 ui-monospace,Menlo,Consolas,monospace;white-space:pre-wrap}
+#diagBtns{position:absolute;right:14px;top:108px}
 </style>
 </head>
 <body>
@@ -51,8 +54,8 @@ label{display:block;margin:10px 0 4px;color:var(--mut);font-size:14px}
     <option value="it">Italiano</option><option value="en">English</option>
   </select>
   <h1 data-i="title">Solargrafia AR</h1>
-  <p class="sub" data-i="sub">Punta il telefono: vedi orizzonte, punti cardinali e inclinazione. Il sole arriva nei prossimi passi.</p>
-  <p class="note" data-i="beta">Versione di prova (passo 1). Su iPhone la bussola è sperimentale.</p>
+  <p class="sub" data-i="sub">Punta il telefono: vedi il percorso del sole nel periodo scelto sopra la fotocamera.</p>
+  <p class="note" data-i="beta">Versione di prova (passo 2). Su iPhone la bussola è sperimentale.</p>
 
   <div class="box">
     <h2 data-i="loc">Posizione</h2>
@@ -64,6 +67,22 @@ label{display:block;margin:10px 0 4px;color:var(--mut);font-size:14px}
     <p class="note" id="locMsg" data-i="locHelp">Puoi anche scrivere le coordinate a mano (positiva a nord e a est).</p>
   </div>
 
+  <div class="box">
+    <h2 data-i="period">Periodo di esposizione</h2>
+    <label for="preset" data-i="preset">Scorciatoia</label>
+    <select id="preset">
+      <option value="w2s" data-i="p1">21 dic → 21 giu (6 mesi)</option>
+      <option value="s2w" data-i="p2">21 giu → 21 dic (6 mesi)</option>
+      <option value="y" data-i="p3">Anno intero (21 dic → 21 dic)</option>
+      <option value="c" data-i="pc">Personalizzato</option>
+    </select>
+    <div class="row">
+      <div><label for="d0" data-i="d0">Inizio</label><input id="d0" type="date"></div>
+      <div><label for="d1" data-i="d1">Fine</label><input id="d1" type="date"></div>
+    </div>
+    <p class="note err" id="perMsg"></p>
+  </div>
+
   <button id="startBtn" class="main" type="button" data-i="start">Avvia AR</button>
   <p class="note err" id="startMsg"></p>
 </main>
@@ -72,9 +91,20 @@ label{display:block;margin:10px 0 4px;color:var(--mut);font-size:14px}
 <section id="ar" hidden>
   <video id="vid" playsinline muted autoplay></video>
   <canvas id="cv"></canvas>
-  <div id="hud"><b id="hudMain">--</b><div class="w" id="hudWarn"></div></div>
+  <div id="hud"><b id="hudMain">--</b><div id="hudSun"></div><div class="w" id="hudWarn"></div></div>
+
+  <canvas id="mini"></canvas>
 
   <div id="panel" hidden>
+    <label style="display:flex;align-items:center;color:var(--fg)"><input id="showSun" type="checkbox"><span data-i="sunShow">Mostra le curve del sole</span></label>
+    <label for="mode" data-i="mode">Quante curve</label>
+    <select id="mode">
+      <option value="month" data-i="mMonth">Una al mese</option>
+      <option value="2w" data-i="m2w">Ogni 2 settimane</option>
+      <option value="1w" data-i="m1w">Ogni settimana</option>
+      <option value="all" data-i="mAll">Tutti i giorni (simula la solargrafia)</option>
+    </select>
+    <p class="note" data-i="legend">Giallo: solstizi. Arancio: equinozi. Bianco: primo e ultimo giorno. Tratteggiata: oggi. Cerchio: il sole adesso.</p>
     <label for="fov"><span data-i="fov">Campo visivo della fotocamera, lato lungo (°)</span>: <b id="fovVal"></b></label>
     <input id="fov" type="range" min="40" max="110" step="0.5">
     <p class="note" data-i="fovHelp">Se l'orizzonte non coincide con quello vero quando inclini il telefono, regola questo valore. La taratura precisa arriva nel passo 5.</p>
@@ -88,6 +118,7 @@ label{display:block;margin:10px 0 4px;color:var(--mut);font-size:14px}
 
   <div id="bar">
     <button id="btnSet" type="button" data-i="settings">Regolazioni</button>
+    <button id="btnMap" type="button" data-i="map">Mappa</button>
     <button id="btnDiag" type="button" data-i="diag">Diagnostica</button>
     <button id="btnExit" type="button" data-i="exit">Esci</button>
   </div>
@@ -95,14 +126,16 @@ label{display:block;margin:10px 0 4px;color:var(--mut);font-size:14px}
 
 <script>
 "use strict";
-const VERSION = "AR v1 (passo 1)";
+const VERSION = "AR v2 (passo 2)";
 const $ = id => document.getElementById(id), rad = Math.PI/180, deg = 180/Math.PI;
 
 /* ---------- Testi (aggiungere una lingua = aggiungere un blocco qui) ---------- */
 const TXT = {
- it:{lang:"Lingua",title:"Solargrafia AR",sub:"Punta il telefono: vedi orizzonte, punti cardinali e inclinazione. Il sole arriva nei prossimi passi.",
-  beta:"Versione di prova (passo 1). Su iPhone la bussola è sperimentale.",loc:"Posizione",gps:"Trova la mia posizione",lat:"Latitudine (°)",lon:"Longitudine (°)",
+ it:{lang:"Lingua",title:"Solargrafia AR",sub:"Punta il telefono: vedi il percorso del sole nel periodo scelto sopra la fotocamera.",
+  beta:"Versione di prova (passo 2). Su iPhone la bussola è sperimentale.",loc:"Posizione",gps:"Trova la mia posizione",lat:"Latitudine (°)",lon:"Longitudine (°)",
   locHelp:"Puoi anche scrivere le coordinate a mano (positiva a nord e a est).",start:"Avvia AR",
+  period:"Periodo di esposizione",preset:"Scorciatoia",p1:"21 dic → 21 giu (6 mesi)",p2:"21 giu → 21 dic (6 mesi)",p3:"Anno intero (21 dic → 21 dic)",pc:"Personalizzato",d0:"Inizio",d1:"Fine",
+  badPeriod:"Periodo non valido: la fine deve essere dopo l'inizio (massimo 3 anni).",
   searching:"Ricerca della posizione in corso…",found:"Posizione trovata, precisione ±{0} m.",foundBad:"Posizione trovata, ma poco precisa (±{0} m). Riprova all'aperto.",
   noGeo:"Questo browser non offre la posizione. Scrivi le coordinate a mano.",geoDenied:"Permesso negato: attiva la posizione nelle impostazioni del browser, oppure scrivi le coordinate a mano.",
   geoFail:"Posizione non disponibile. Scrivi le coordinate a mano.",geoTimeout:"La ricerca ha impiegato troppo tempo. Riprova o scrivi le coordinate a mano.",
@@ -111,13 +144,18 @@ const TXT = {
   errCamDenied:"Permesso fotocamera negato. Attivalo nelle impostazioni del browser e riprova.",errCam:"Impossibile aprire la fotocamera: ",
   errSensor:"Permesso ai sensori di movimento negato. Su iPhone: Impostazioni > Safari > Movimento e orientamento.",
   warnNoSensor:"Nessun dato dai sensori: il telefono non li fornisce o sono bloccati.",warnRel:"Bussola non disponibile: la direzione è solo relativa.",
-  settings:"Regolazioni",diag:"Diagnostica",exit:"Esci",copy:"Copia",copied:"Copiato",
+  needLoc:"Imposta la posizione (Esci, poi scrivila o usa il GPS) per vedere il sole.",
+  settings:"Regolazioni",map:"Mappa",diag:"Diagnostica",exit:"Esci",copy:"Copia",copied:"Copiato",
+  sunShow:"Mostra le curve del sole",mode:"Quante curve",mMonth:"Una al mese",m2w:"Ogni 2 settimane",m1w:"Ogni settimana",mAll:"Tutti i giorni (simula la solargrafia)",
+  legend:"Giallo: solstizi. Arancio: equinozi. Bianco: primo e ultimo giorno. Tratteggiata: oggi. Cerchio: il sole adesso.",
   fov:"Campo visivo della fotocamera, lato lungo (°)",fovHelp:"Se l'orizzonte non coincide con quello vero quando inclini il telefono, regola questo valore. La taratura precisa arriva nel passo 5.",
   north:"Correzione del nord (°, positiva verso est)",northHelp:"Dalla bussola del telefono al nord geografico: in Salento la declinazione è di circa +4°. La taratura sul sole arriva nel passo 6.",
-  az:"Az",incl:"Incl",cards:["N","NE","E","SE","S","SO","O","NO"]},
- en:{lang:"Language",title:"Solargraphy AR",sub:"Point your phone: see the horizon, compass points and tilt. The sun comes in the next steps.",
-  beta:"Test version (step 1). On iPhone the compass is experimental.",loc:"Location",gps:"Find my location",lat:"Latitude (°)",lon:"Longitude (°)",
+  az:"Az",incl:"Incl",alt:"Alt",sunNow:"Sole ora",below:"sotto l'orizzonte",cards:["N","NE","E","SE","S","SO","O","NO"]},
+ en:{lang:"Language",title:"Solargraphy AR",sub:"Point your phone: see the sun's path for the chosen period over the camera view.",
+  beta:"Test version (step 2). On iPhone the compass is experimental.",loc:"Location",gps:"Find my location",lat:"Latitude (°)",lon:"Longitude (°)",
   locHelp:"You can also type the coordinates by hand (positive north and east).",start:"Start AR",
+  period:"Exposure period",preset:"Shortcut",p1:"Dec 21 → Jun 21 (6 months)",p2:"Jun 21 → Dec 21 (6 months)",p3:"Full year (Dec 21 → Dec 21)",pc:"Custom",d0:"Start",d1:"End",
+  badPeriod:"Invalid period: the end must be after the start (3 years at most).",
   searching:"Looking for your location…",found:"Location found, accuracy ±{0} m.",foundBad:"Location found, but not accurate (±{0} m). Try again outdoors.",
   noGeo:"This browser has no location service. Type the coordinates by hand.",geoDenied:"Permission denied: enable location in the browser settings, or type the coordinates by hand.",
   geoFail:"Location not available. Type the coordinates by hand.",geoTimeout:"The search took too long. Try again or type the coordinates by hand.",
@@ -126,10 +164,13 @@ const TXT = {
   errCamDenied:"Camera permission denied. Enable it in the browser settings and try again.",errCam:"Cannot open the camera: ",
   errSensor:"Motion sensor permission denied. On iPhone: Settings > Safari > Motion & Orientation Access.",
   warnNoSensor:"No sensor data: the phone does not provide it or it is blocked.",warnRel:"Compass not available: direction is relative only.",
-  settings:"Adjust",diag:"Diagnostics",exit:"Exit",copy:"Copy",copied:"Copied",
+  needLoc:"Set your location (Exit, then type it or use GPS) to see the sun.",
+  settings:"Adjust",map:"Map",diag:"Diagnostics",exit:"Exit",copy:"Copy",copied:"Copied",
+  sunShow:"Show the sun curves",mode:"How many curves",mMonth:"One per month",m2w:"Every 2 weeks",m1w:"Every week",mAll:"Every day (simulates the solargraph)",
+  legend:"Yellow: solstices. Orange: equinoxes. White: first and last day. Dashed: today. Circle: the sun right now.",
   fov:"Camera field of view, long side (°)",fovHelp:"If the horizon does not match the real one when you tilt the phone, adjust this value. Precise calibration comes in step 5.",
   north:"North correction (°, positive toward east)",northHelp:"From the phone compass to true north: in Salento declination is about +4°. Sun calibration comes in step 6.",
-  az:"Az",incl:"Tilt",cards:["N","NE","E","SE","S","SW","W","NW"]}
+  az:"Az",incl:"Tilt",alt:"Alt",sunNow:"Sun now",below:"below the horizon",cards:["N","NE","E","SE","S","SW","W","NW"]}
 };
 let LANG = "it";
 const t = k => (TXT[LANG] && TXT[LANG][k]) || TXT.en[k] || k;
@@ -138,20 +179,50 @@ function applyLang(){
   document.querySelectorAll("[data-i]").forEach(e => { e.textContent = t(e.dataset.i); });
   $("lang").value = LANG;
 }
-/* Lingua scelta nel simulatore (stessa chiave) */
 function ld(k, d){ try{ const v = localStorage.getItem(k); return v === null ? d : v; }catch(e){ return d; } }
 function sv(k, v){ try{ localStorage.setItem(k, v); }catch(e){} }
-{ const s = ld("solar_lang", (navigator.language || "it").slice(0,2)); LANG = TXT[s] ? s : "it"; }
+{ const s = ld("solar_lang", (navigator.language || "it").slice(0,2)); LANG = TXT[s] ? s : "it"; }   // stessa chiave del simulatore
 $("lang").onchange = e => { LANG = e.target.value; sv("solar_lang", LANG); applyLang(); };
 applyLang();
 
 const fm = (x, n=1) => x.toFixed(n).replace(".", LANG === "it" ? "," : ".");
 const wrap360 = a => ((a % 360) + 360) % 360;
 const wrap180 = a => wrap360(a + 180) - 180;
+const num = s => parseFloat(String(s).replace(",", "."));
+
+/* ---------- Sole: formule NOAA (azimut da nord in senso orario, altezza con rifrazione) ---------- */
+/*SUN-START*/
+function solar(ms){   // declinazione (rad) ed equazione del tempo (minuti)
+  const T = (ms/86400000 + 2440587.5 - 2451545)/36525;
+  const L0 = wrap360(280.46646 + T*(36000.76983 + T*0.0003032));
+  const M = (357.52911 + T*(35999.05029 - 0.0001537*T))*rad;
+  const e = 0.016708634 - T*(0.000042037 + 0.0000001267*T);
+  const C = Math.sin(M)*(1.914602 - T*(0.004817 + 0.000014*T)) + Math.sin(2*M)*(0.019993 - 0.000101*T) + Math.sin(3*M)*0.000289;
+  const om = (125.04 - 1934.136*T)*rad;
+  const lam = (L0 + C - 0.00569 - 0.00478*Math.sin(om))*rad;
+  const eps = (23 + (26 + (21.448 - T*(46.815 + T*(0.00059 - T*0.001813)))/60)/60 + 0.00256*Math.cos(om))*rad;
+  const y = Math.tan(eps/2)**2, l0 = L0*rad;
+  const eqt = 4*deg*(y*Math.sin(2*l0) - 2*e*Math.sin(M) + 4*e*y*Math.sin(M)*Math.cos(2*l0) - 0.5*y*y*Math.sin(4*l0) - 1.25*e*e*Math.sin(2*M));
+  return {decl: Math.asin(Math.sin(eps)*Math.sin(lam)), eqt};
+}
+function sunPos(ms, lat, lon){
+  const s = solar(ms), d = new Date(ms);
+  const utcMin = d.getUTCHours()*60 + d.getUTCMinutes() + d.getUTCSeconds()/60 + d.getUTCMilliseconds()/60000;
+  const H = wrap180((utcMin + s.eqt + 4*lon)/4 - 180)*rad, la = lat*rad;
+  const cz = Math.sin(la)*Math.sin(s.decl) + Math.cos(la)*Math.cos(s.decl)*Math.cos(H);
+  let el = 90 - Math.acos(Math.max(-1, Math.min(1, cz)))*deg;
+  const az = wrap360(Math.atan2(Math.sin(H), Math.cos(H)*Math.sin(la) - Math.tan(s.decl)*Math.cos(la))*deg + 180);
+  const er = el*rad, tn = Math.tan(er); let r;                     // rifrazione atmosferica (secondi d'arco)
+  if(el > 85) r = 0;
+  else if(el > 5) r = 58.1/tn - 0.07/tn**3 + 0.000086/tn**5;
+  else if(el > -0.575) r = 1735 + el*(-518.2 + el*(103.4 + el*(-12.79 + el*0.711)));
+  else r = -20.772/tn;
+  return {az, el: el + r/3600};
+}
+/*SUN-END*/
 
 /* ---------- Posizione: GPS o coordinate manuali ---------- */
 $("lat").value = ld("ar_lat", ""); $("lon").value = ld("ar_lon", "");
-const num = s => parseFloat(String(s).replace(",", "."));
 function readLoc(){
   const la = num($("lat").value), lo = num($("lon").value);
   if(!isFinite(la) || !isFinite(lo) || Math.abs(la) > 90 || Math.abs(lo) > 180) return null;
@@ -173,12 +244,81 @@ $("btnGps").onclick = () => {
   }, {enableHighAccuracy: true, timeout: 20000, maximumAge: 0});
 };
 
+/* ---------- Periodo di esposizione ---------- */
+const iso = ms => new Date(ms).toISOString().slice(0, 10);
+function nextOcc(m, d){            // prossima data (mese 0-11, giorno) da oggi
+  const n = new Date(), y = n.getUTCFullYear(), today = Date.UTC(y, n.getUTCMonth(), n.getUTCDate());
+  const t0 = Date.UTC(y, m, d); return t0 < today ? Date.UTC(y + 1, m, d) : t0;
+}
+function applyPreset(p){
+  if(p === "c") return;
+  let a, b;
+  if(p === "s2w"){ a = nextOcc(5, 21); b = Date.UTC(new Date(a).getUTCFullYear(), 11, 21); }
+  else if(p === "y"){ a = nextOcc(11, 21); b = Date.UTC(new Date(a).getUTCFullYear() + 1, 11, 21); }
+  else { a = nextOcc(11, 21); b = Date.UTC(new Date(a).getUTCFullYear() + 1, 5, 21); }
+  $("d0").value = iso(a); $("d1").value = iso(b);
+}
+function validPeriod(){
+  const a = Date.parse($("d0").value + "T00:00:00Z"), b = Date.parse($("d1").value + "T00:00:00Z");
+  return isFinite(a) && isFinite(b) && b > a && (b - a)/864e5 <= 1100;
+}
+{ const p = ld("ar_preset", "w2s"); $("preset").value = p;
+  if(p === "c"){ $("d0").value = ld("ar_d0", ""); $("d1").value = ld("ar_d1", ""); if(!validPeriod()){ $("preset").value = "w2s"; applyPreset("w2s"); } }
+  else applyPreset(p); }
+$("preset").onchange = e => { sv("ar_preset", e.target.value); applyPreset(e.target.value); sv("ar_d0", $("d0").value); sv("ar_d1", $("d1").value); };
+$("d0").oninput = $("d1").oninput = () => { $("preset").value = "c"; sv("ar_preset", "c"); sv("ar_d0", $("d0").value); sv("ar_d1", $("d1").value); };
+
+/* ---------- Curve del sole del periodo ---------- */
+let ARCS = [], TODAY = null, LAT = 40, HAVE_LOC = false;
+let SHOW = ld("ar_show", "1") === "1", MODE = ld("ar_mode", "month");
+function dayArc(dayMs, lat, lon){   // un giorno: dal mezzogiorno solare -12 h a +12 h, un punto ogni 10 minuti, solo sopra l'orizzonte
+  const noon = dayMs + 43200000 - lon/15*3600000, t0 = noon - 43200000, az = [], el = [];
+  for(let k = 0; k <= 144; k++){ const s = sunPos(t0 + k*600000, lat, lon); if(s.el > -0.5){ az.push(s.az); el.push(s.el); } }
+  const n = az.length, v = new Float32Array(3*n); let top = 0;
+  for(let i = 0; i < n; i++){
+    const a = az[i]*rad, e = el[i]*rad;
+    v[3*i] = Math.cos(e)*Math.sin(a); v[3*i+1] = Math.cos(e)*Math.cos(a); v[3*i+2] = Math.sin(e);
+    if(el[i] > el[top]) top = i;
+  }
+  return {t: dayMs, n, az, el, v, top, decl: solar(noon).decl*deg, kind: ""};
+}
+function buildArcs(la){
+  ARCS = []; TODAY = null; HAVE_LOC = !!la;
+  if(!la) return;
+  LAT = la.lat;
+  const a = Date.parse($("d0").value + "T00:00:00Z"), days = Math.round((Date.parse($("d1").value + "T00:00:00Z") - a)/864e5);
+  for(let i = 0; i <= days; i++) ARCS.push(dayArc(a + i*864e5, la.lat, la.lon));
+  const n = ARCS.length;
+  for(let i = 0; i < n; i++){          // solstizi: massimi/minimi della declinazione (oltre 23,4°), anche sul primo o ultimo giorno; equinozi: passaggio per zero
+    const c = ARCS[i].decl, p = i > 0 ? ARCS[i-1].decl : null, q = i < n - 1 ? ARCS[i+1].decl : null;
+    if(c >= 23.4 && (p === null || c >= p) && (q === null || c >= q)) ARCS[i].kind = "sol";
+    if(c <= -23.4 && (p === null || c <= p) && (q === null || c <= q)) ARCS[i].kind = "sol";
+  }
+  for(let i = 0; i < n - 1; i++) if(ARCS[i].decl*ARCS[i+1].decl < 0){
+    const j = Math.abs(ARCS[i].decl) < Math.abs(ARCS[i+1].decl) ? i : i + 1; if(!ARCS[j].kind) ARCS[j].kind = "eq";
+  }
+  const d = new Date(); TODAY = dayArc(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate()), la.lat, la.lon);
+}
+function selected(a, i, n){
+  if(a.kind || i === 0 || i === n - 1 || MODE === "all") return true;
+  if(MODE === "1w") return i % 7 === 0;
+  if(MODE === "2w") return i % 14 === 0;
+  return new Date(a.t).getUTCDate() === 21;   // una al mese: il giorno 21
+}
+function styleFor(a, i, n){                    // [colore, spessore]
+  if(a.kind === "sol") return ["#ffc83d", 3];
+  if(a.kind === "eq") return ["#ff8a5c", 3];
+  if(i === 0 || i === n - 1) return ["#ffffff", 2.5];
+  return MODE === "all" ? ["#ffc83d40", 1.4] : ["#ffffffb0", 1.5];
+}
+const dateLabel = ms => new Date(ms).toLocaleDateString(LANG === "it" ? "it-IT" : "en-GB", {day: "numeric", month: "short", timeZone: "UTC"});
+
 /* ---------- Stato dei sensori ---------- */
 let stream = null, wake = null, running = false, raf = 0;
 let src = "none";            // none | absolute | relative | ios
 let F = null;                // assi del telefono filtrati {X,Y,Z} nel sistema Est-Nord-Alto
 let iosOff = null;           // scarto di direzione per iPhone (gradi)
-let evCount = 0, evRate = 0, lastEv = 0, startedAt = 0, lastRaw = {}, lastHead = null;
+let evCount = 0, evRate = 0, startedAt = 0, lastRaw = {}, lastHead = null, bound = false, tries = 0, lastBind = 0;
 let FOV = +ld("ar_fov", 69), NORTH = +ld("ar_north", 0) || 0;
 
 const dot = (a,b) => a[0]*b[0]+a[1]*b[1]+a[2]*b[2];
@@ -212,63 +352,82 @@ function feed(alpha, beta, gamma, compass){
 }
 function onAbs(e){
   if(e.alpha == null) return;
-  src = "absolute"; evCount++; lastEv = performance.now(); lastRaw = {a:e.alpha, b:e.beta, g:e.gamma}; lastHead = null;
+  src = "absolute"; evCount++; lastRaw = {a:e.alpha, b:e.beta, g:e.gamma}; lastHead = null;
   feed(e.alpha, e.beta, e.gamma, null);
 }
 function onRel(e){
   if(src === "absolute" || e.alpha == null) return;
   const h = e.webkitCompassHeading;
-  src = (h != null) ? "ios" : "relative"; evCount++; lastEv = performance.now(); lastRaw = {a:e.alpha, b:e.beta, g:e.gamma}; lastHead = (h != null) ? h : null;
+  src = (h != null) ? "ios" : "relative"; evCount++; lastRaw = {a:e.alpha, b:e.beta, g:e.gamma}; lastHead = (h != null) ? h : null;
   feed(e.alpha, e.beta, e.gamma, (h != null) ? h : null);
+}
+/* Registrazione dei sensori; si ripete se non arrivano dati (a volte Chrome non li avvia alla prima apertura) */
+function unbindSensors(){
+  window.removeEventListener("deviceorientationabsolute", onAbs, true);
+  window.removeEventListener("deviceorientation", onRel, true); bound = false;
+}
+function bindSensors(){
+  unbindSensors();
+  if("ondeviceorientationabsolute" in window) window.addEventListener("deviceorientationabsolute", onAbs, true);
+  window.addEventListener("deviceorientation", onRel, true);
+  bound = true; lastBind = performance.now();
 }
 
 /* ---------- Avvio e arresto ---------- */
 async function startAR(){
-  const msg = $("startMsg"); msg.textContent = "";
+  const msg = $("startMsg"); msg.textContent = ""; $("perMsg").textContent = "";
   if(!window.isSecureContext){ msg.textContent = t("errSecure"); return; }
   if(!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia){ msg.textContent = t("errNoCam"); return; }
   const la = readLoc();
   if(!la && ($("lat").value || $("lon").value)){ msg.textContent = t("badCoord"); return; }
+  if(!validPeriod()){ $("perMsg").textContent = t("badPeriod"); return; }
   try{   // iPhone: il permesso ai sensori va chiesto subito dopo il tocco
     if(typeof DeviceOrientationEvent !== "undefined" && typeof DeviceOrientationEvent.requestPermission === "function"){
       if(await DeviceOrientationEvent.requestPermission() !== "granted"){ msg.textContent = t("errSensor"); return; }
     }
   }catch(e){ msg.textContent = t("errSensor"); return; }
+  src = "none"; F = null; iosOff = null; evCount = 0; evRate = 0; tries = 0;
+  bindSensors();                 // subito dopo il tocco, prima della richiesta della fotocamera
   try{
     stream = await navigator.mediaDevices.getUserMedia({video: {facingMode: {ideal: "environment"}, width: {ideal: 1920}, height: {ideal: 1080}}, audio: false});
   }catch(e){
+    unbindSensors();
     msg.textContent = (e && e.name === "NotAllowedError") ? t("errCamDenied") : t("errCam") + (e && e.message ? e.message : e);
     return;
   }
   $("vid").srcObject = stream;
   try{ await $("vid").play(); }catch(e){}
-  src = "none"; F = null; iosOff = null; evCount = 0; evRate = 0; startedAt = performance.now(); lastEv = 0;
-  if("ondeviceorientationabsolute" in window) window.addEventListener("deviceorientationabsolute", onAbs, true);
-  window.addEventListener("deviceorientation", onRel, true);
+  buildArcs(la);
   try{ if(navigator.wakeLock) wake = await navigator.wakeLock.request("screen"); }catch(e){}
   $("home").hidden = true; $("ar").hidden = false;
-  running = true; resize(); loop();
+  $("mini").hidden = ld("ar_map", "1") !== "1";
+  running = true; resize(); bindSensors(); startedAt = performance.now(); loop();
 }
 function stopAR(){
-  running = false; cancelAnimationFrame(raf);
-  window.removeEventListener("deviceorientationabsolute", onAbs, true);
-  window.removeEventListener("deviceorientation", onRel, true);
+  running = false; cancelAnimationFrame(raf); unbindSensors();
   if(stream){ stream.getTracks().forEach(tr => tr.stop()); stream = null; }
   try{ if(wake){ wake.release(); wake = null; } }catch(e){}
   $("ar").hidden = true; $("home").hidden = false;
 }
 $("startBtn").onclick = startAR;
 $("btnExit").onclick = stopAR;
-document.addEventListener("visibilitychange", async () => {   // il blocco dello schermo cade quando la pagina va in secondo piano
-  if(running && document.visibilityState === "visible"){ try{ if(navigator.wakeLock) wake = await navigator.wakeLock.request("screen"); }catch(e){} }
+document.addEventListener("visibilitychange", async () => {   // al ritorno in primo piano: sensori e blocco schermo di nuovo attivi
+  if(running && document.visibilityState === "visible"){
+    tries = 0; bindSensors();
+    try{ if(navigator.wakeLock) wake = await navigator.wakeLock.request("screen"); }catch(e){}
+  }
 });
 
 /* ---------- Regolazioni ---------- */
 $("fov").value = FOV; $("fovVal").textContent = fm(FOV) + "°"; $("north").value = NORTH;
+$("showSun").checked = SHOW; $("mode").value = MODE;
 $("fov").oninput = e => { FOV = +e.target.value; $("fovVal").textContent = fm(FOV) + "°"; sv("ar_fov", FOV); };
 $("north").oninput = e => { const v = num(e.target.value); NORTH = isFinite(v) ? v : 0; sv("ar_north", NORTH); };
-$("btnSet").onclick = () => { $("panel").hidden = !$("panel").hidden; };
-$("btnDiag").onclick = () => { const h = !$("diag").hidden; $("diag").hidden = h; $("diagBtns").hidden = h; };
+$("showSun").onchange = e => { SHOW = e.target.checked; sv("ar_show", SHOW ? "1" : "0"); };
+$("mode").onchange = e => { MODE = e.target.value; sv("ar_mode", MODE); };
+$("btnSet").onclick = () => { const o = $("panel").hidden; $("panel").hidden = !o; if(o){ $("diag").hidden = true; $("diagBtns").hidden = true; } };
+$("btnDiag").onclick = () => { const o = $("diag").hidden; $("diag").hidden = !o; $("diagBtns").hidden = !o; if(o) $("panel").hidden = true; };
+$("btnMap").onclick = () => { const o = $("mini").hidden; $("mini").hidden = !o; sv("ar_map", o ? "1" : "0"); resize(); };
 $("btnCopy").onclick = async () => {
   try{ await navigator.clipboard.writeText($("diag").textContent); $("btnCopy").textContent = t("copied"); }
   catch(e){ const r = document.createRange(); r.selectNodeContents($("diag")); const s = getSelection(); s.removeAllRanges(); s.addRange(r); }
@@ -276,11 +435,13 @@ $("btnCopy").onclick = async () => {
 };
 
 /* ---------- Disegno ---------- */
-const cv = $("cv"), cx = cv.getContext("2d");
-let W = 0, H = 0;
+const cv = $("cv"), cx = cv.getContext("2d"), mini = $("mini"), mx = mini.getContext("2d");
+let W = 0, H = 0, MW = 0, MH = 0;
 function resize(){
   const dpr = window.devicePixelRatio || 1; W = window.innerWidth; H = window.innerHeight;
   cv.width = Math.round(W*dpr); cv.height = Math.round(H*dpr); cx.setTransform(dpr,0,0,dpr,0,0);
+  const r = mini.getBoundingClientRect(); MW = r.width; MH = r.height;
+  if(MW > 0){ mini.width = Math.round(MW*dpr); mini.height = Math.round(MH*dpr); mx.setTransform(dpr,0,0,dpr,0,0); }
 }
 window.addEventListener("resize", resize);
 
@@ -294,15 +455,16 @@ function axes(){
     f: [-Z[0], -Z[1], -Z[2]]       // la fotocamera posteriore guarda lungo -z
   };
 }
-/* Da (azimut, altezza) in gradi a pixel dello schermo; null se dietro la fotocamera */
+/* Da (azimut, altezza) in gradi a pixel dello schermo; null se dietro la fotocamera. P.fl = lunghezza focale in pixel */
 function makeProj(A){
   const v = $("vid"), vw = v.videoWidth || 1, vh = v.videoHeight || 1;
-  const fl = (Math.max(vw, vh)/2) / Math.tan(FOV*rad/2) * Math.max(W/vw, H/vh);   // lunghezza focale in pixel dello schermo (video con "cover")
-  return (az, el) => {
+  const fl = (Math.max(vw, vh)/2) / Math.tan(FOV*rad/2) * Math.max(W/vw, H/vh);   // video mostrato con "cover"
+  const P = (az, el) => {
     const a = az*rad, e = el*rad, d = [Math.cos(e)*Math.sin(a), Math.cos(e)*Math.cos(a), Math.sin(e)];
     const zc = dot(d, A.f); if(zc < 0.05) return null;
     return [W/2 + dot(d, A.r)/zc*fl, H/2 - dot(d, A.u)/zc*fl];
   };
+  P.fl = fl; return P;
 }
 function polyline(P, az0, az1, step, el){
   cx.beginPath(); let pen = false;
@@ -312,18 +474,83 @@ function polyline(P, az0, az1, step, el){
   }
   cx.stroke();
 }
+/* Disegna una curva del sole a partire dai vettori precalcolati, senza creare oggetti (sono migliaia di punti per fotogramma) */
+function arcPath(a, A, fl){
+  const v = a.v, r = A.r, u = A.u, f = A.f; let pen = false;
+  cx.beginPath();
+  for(let i = 0; i < a.n; i++){
+    const x = v[3*i], y = v[3*i+1], z = v[3*i+2], zc = x*f[0] + y*f[1] + z*f[2];
+    if(zc < 0.05){ pen = false; continue; }
+    const px = W/2 + (x*r[0] + y*r[1] + z*r[2])/zc*fl, py = H/2 - (x*u[0] + y*u[1] + z*u[2])/zc*fl;
+    pen ? cx.lineTo(px, py) : cx.moveTo(px, py); pen = true;
+  }
+  cx.stroke();
+}
+function arcLabel(a, A, fl, text){
+  const x = a.v[3*a.top], y = a.v[3*a.top+1], z = a.v[3*a.top+2], zc = x*A.f[0] + y*A.f[1] + z*A.f[2]; if(zc < 0.05) return;
+  const px = W/2 + (x*A.r[0] + y*A.r[1] + z*A.r[2])/zc*fl, py = H/2 - (x*A.u[0] + y*A.u[1] + z*A.u[2])/zc*fl;
+  cx.strokeText(text, px, py - 10); cx.fillText(text, px, py - 10);
+}
+function drawSun(A, P, sun){
+  const p = P(sun.az, sun.el); if(!p) return;
+  cx.setLineDash([]); cx.beginPath(); cx.arc(p[0], p[1], 14, 0, 2*Math.PI);
+  cx.fillStyle = sun.el > -0.8 ? "#ffd84d" : "#ffd84d66"; cx.fill(); cx.lineWidth = 3; cx.strokeStyle = "#fff"; cx.stroke();
+  cx.fillStyle = "#fff"; cx.strokeStyle = "#000a"; cx.font = "700 13px system-ui,sans-serif";
+  cx.strokeText(t("sunNow"), p[0], p[1] + 28); cx.fillText(t("sunNow"), p[0], p[1] + 28);
+}
+function drawMini(camAz, camEl, hf, vf, sun){
+  if(mini.hidden || MW <= 0) return;
+  const c0 = LAT >= 0 ? 180 : 0, X = az => (wrap180(az - c0) + 180)/360*MW, Y = el => MH - 1 - Math.max(0, el)/90*(MH - 2);
+  mx.clearRect(0, 0, MW, MH);
+  mx.lineWidth = 1; mx.strokeStyle = "#ffffff30"; mx.fillStyle = "#ffffffaa"; mx.font = "10px system-ui,sans-serif"; mx.textAlign = "center"; mx.setLineDash([]);
+  for(let az = 0; az < 360; az += 90){ const x = X(az); mx.beginPath(); mx.moveTo(x, 0); mx.lineTo(x, MH); mx.stroke(); mx.fillText(t("cards")[az/45], Math.min(MW - 6, Math.max(6, x)), 10); }
+  for(const el of [30, 60]){ mx.beginPath(); mx.moveTo(0, Y(el)); mx.lineTo(MW, Y(el)); mx.stroke(); }
+  mx.strokeStyle = "#7fd6e8"; mx.beginPath(); mx.moveTo(0, MH - 1); mx.lineTo(MW, MH - 1); mx.stroke();
+  const drawA = (a, col, w, dash) => {
+    mx.strokeStyle = col; mx.lineWidth = w; mx.setLineDash(dash || []); mx.beginPath(); let px = null;
+    for(let i = 0; i < a.n; i++){ const x = X(a.az[i]), y = Y(a.el[i]); (px === null || Math.abs(x - px) > MW/2) ? mx.moveTo(x, y) : mx.lineTo(x, y); px = x; }
+    mx.stroke();
+  };
+  if(SHOW && HAVE_LOC){
+    const n = ARCS.length;
+    for(let i = 0; i < n; i++) if(selected(ARCS[i], i, n) && !ARCS[i].kind && i !== 0 && i !== n - 1){ const s = styleFor(ARCS[i], i, n); drawA(ARCS[i], s[0], 1, null); }
+    for(let i = 0; i < n; i++) if(ARCS[i].kind || i === 0 || i === n - 1){ const s = styleFor(ARCS[i], i, n); drawA(ARCS[i], s[0], 1.8, null); }
+  }
+  if(TODAY) drawA(TODAY, "#ffffffcc", 1, [3, 3]);
+  mx.setLineDash([]); mx.strokeStyle = "#ffc83d"; mx.lineWidth = 1.5;
+  mx.strokeRect(X(camAz) - hf/360*MW/2, Y(camEl + vf/2), hf/360*MW, vf/90*(MH - 2));
+  if(HAVE_LOC && sun.el > -5){ mx.beginPath(); mx.arc(X(sun.az), Y(sun.el), 4, 0, 2*Math.PI); mx.fillStyle = "#ffd84d"; mx.fill(); mx.strokeStyle = "#fff"; mx.lineWidth = 1; mx.stroke(); }
+}
 function draw(){
   cx.clearRect(0, 0, W, H);
   if(!F) return;
-  const A = axes(), P = makeProj(A);
+  const A = axes(), P = makeProj(A), fl = P.fl, now = Date.now();
   const camAz = wrap360(Math.atan2(A.f[0], A.f[1])*deg), camEl = Math.asin(Math.max(-1, Math.min(1, A.f[2])))*deg;
-  cx.lineJoin = "round"; cx.font = "600 13px system-ui,sans-serif"; cx.textAlign = "center"; cx.textBaseline = "middle";
+  const sun = HAVE_LOC ? sunPos(now, readLoc() ? readLoc().lat : LAT, readLoc() ? readLoc().lon : 0) : {az: 0, el: -90};
+  cx.lineJoin = "round"; cx.textAlign = "center"; cx.textBaseline = "middle";
   // linee di altezza
-  cx.setLineDash([6,8]); cx.lineWidth = 1; cx.strokeStyle = "#ffffff77"; cx.fillStyle = "#fff";
+  cx.font = "600 13px system-ui,sans-serif"; cx.setLineDash([6,8]); cx.lineWidth = 1; cx.strokeStyle = "#ffffff77"; cx.fillStyle = "#fff";
   for(const el of [-30,-15,15,30,45,60,75]){
     polyline(P, 0, 360, 4, el);
     const p = P(Math.round(camAz/10)*10, el); if(p) cx.fillText(el + "°", p[0], p[1] - 9);
   }
+  // curve del sole del periodo
+  if(SHOW && HAVE_LOC){
+    const n = ARCS.length; cx.setLineDash([]);
+    for(let pass = 0; pass < 2; pass++) for(let i = 0; i < n; i++){        // prima le curve semplici, poi solstizi/equinozi/estremi sopra
+      const a = ARCS[i], key = !!a.kind || i === 0 || i === n - 1;
+      if((pass === 1) !== key || !selected(a, i, n)) continue;
+      const s = styleFor(a, i, n); cx.strokeStyle = s[0]; cx.lineWidth = s[1]; arcPath(a, A, fl);
+    }
+    cx.font = "700 13px system-ui,sans-serif"; cx.lineWidth = 3; cx.strokeStyle = "#000b";
+    for(let i = 0; i < n; i++){
+      const a = ARCS[i], key = !!a.kind || i === 0 || i === n - 1;
+      if(selected(a, i, n) && (key || MODE !== "all")){ cx.fillStyle = styleFor(a, i, n)[0].slice(0, 7); arcLabel(a, A, fl, dateLabel(a.t)); }
+    }
+  }
+  // arco di oggi (tratteggiato) e sole adesso
+  if(HAVE_LOC && TODAY){ cx.setLineDash([8,6]); cx.lineWidth = 2; cx.strokeStyle = "#ffffffdd"; arcPath(TODAY, A, fl); cx.setLineDash([]); }
+  if(HAVE_LOC) drawSun(A, P, sun);
   // orizzonte
   cx.setLineDash([]); cx.lineWidth = 2.5; cx.strokeStyle = "#7fd6e8"; polyline(P, 0, 360, 2, 0);
   // gradi lungo l'orizzonte: tacche ogni 5°, numeri ogni 30°, lettere ai punti cardinali
@@ -342,23 +569,26 @@ function draw(){
   // mirino al centro
   cx.strokeStyle = "#ffc83d"; cx.lineWidth = 2; cx.beginPath();
   cx.moveTo(W/2 - 16, H/2); cx.lineTo(W/2 + 16, H/2); cx.moveTo(W/2, H/2 - 16); cx.lineTo(W/2, H/2 + 16); cx.stroke();
-  // testo in alto
+  // testi in alto e mini-mappa
   $("hudMain").textContent = t("az") + " " + fm(camAz) + "° " + t("cards")[Math.round(camAz/45) % 8] + "   " + t("incl") + " " + (camEl >= 0 ? "+" : "") + fm(camEl) + "°";
+  $("hudSun").textContent = HAVE_LOC ? t("sunNow") + ": " + t("az") + " " + fm(sun.az) + "°  " + t("alt") + " " + fm(sun.el) + "°" + (sun.el < -0.8 ? " (" + t("below") + ")" : "") : "";
+  drawMini(camAz, camEl, 2*Math.atan(W/2/fl)*deg, 2*Math.atan(H/2/fl)*deg, sun);
 }
 function warnings(){
   const now = performance.now(); let w = "";
   if(src === "none" && now - startedAt > 2500) w = t("warnNoSensor");
   else if(src === "relative") w = t("warnRel");
+  else if(!HAVE_LOC) w = t("needLoc");
   $("hudWarn").textContent = w;
 }
 function diagText(){
   const v = $("vid"), la = readLoc(), A = F ? axes() : null;
-  const camAz = A ? wrap360(Math.atan2(A.f[0], A.f[1])*deg) : NaN;
+  const camAz = A ? wrap360(Math.atan2(A.f[0], A.f[1])*deg) : NaN, s = la ? sunPos(Date.now(), la.lat, la.lon) : null;
   return [
     VERSION,
     "pagina sicura (https): " + window.isSecureContext,
     "browser: " + navigator.userAgent,
-    "sorgente sensori: " + src + (src === "ios" ? " (scarto bussola " + (iosOff === null ? "-" : fm(iosOff) + "°") + ")" : ""),
+    "sorgente sensori: " + src + (src === "ios" ? " (scarto bussola " + (iosOff === null ? "-" : fm(iosOff) + "°") + ")" : "") + ", registrazioni di riserva: " + tries,
     "eventi al secondo: " + evRate,
     "alpha/beta/gamma: " + (lastRaw.a != null ? fm(lastRaw.a) + " / " + fm(lastRaw.b) + " / " + fm(lastRaw.g) : "-"),
     "webkitCompassHeading: " + (lastHead != null ? fm(lastHead) : "-"),
@@ -367,6 +597,9 @@ function diagText(){
     "schermo: " + W + " x " + H + ", rotazione " + ((screen.orientation && screen.orientation.angle) || window.orientation || 0) + "°",
     "campo visivo lato lungo: " + fm(FOV) + "°, correzione nord: " + fm(NORTH) + "°",
     "posizione: " + (la ? fm(la.lat, 5) + ", " + fm(la.lon, 5) : "non impostata"),
+    "periodo: " + $("d0").value + " → " + $("d1").value + ", giorni calcolati: " + ARCS.length + ", modo: " + MODE + (SHOW ? "" : " (spento)"),
+    "sole ora (NOAA): " + (s ? "az " + fm(s.az, 2) + "  alt " + fm(s.el, 2) : "-"),
+    "ora UTC: " + new Date().toISOString(),
     "lingua: " + LANG
   ].join("\n");
 }
@@ -375,6 +608,7 @@ function loop(){
   if(!running) return;
   const now = performance.now();
   if(now - lastRateT > 1000){ evRate = evCount; evCount = 0; lastRateT = now; }
+  if(src === "none" && now - lastBind > 1500 && tries < 3){ tries++; bindSensors(); }   // rimedio: riprova a registrare i sensori
   draw(); warnings();
   if(!$("diag").hidden && now - lastDiagT > 400){ $("diag").textContent = diagText(); lastDiagT = now; }
   raf = requestAnimationFrame(loop);

@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Solargrafia AR</title>
-<!-- Solargrafia AR - passo 4 (versione di prova). Licenza MIT. -->
+<!-- Solargrafia AR - passo 4c (versione di prova). Licenza MIT. -->
 <style>
 :root{--bg:#0f1a24;--fg:#e8edf2;--mut:#93a3b3;--ac:#ffc83d;--ln:#7fd6e8;--bd:#2a3a4a}
 *{box-sizing:border-box}
@@ -32,6 +32,8 @@ label{display:block;margin:10px 0 4px;color:var(--mut);font-size:14px}
 /* Schermata AR */
 #ar{position:fixed;inset:0;background:#000;overflow:hidden}
 #vid{position:absolute;inset:0;width:100%;height:100%;object-fit:cover}
+#vid{filter:brightness(var(--vb,1)) contrast(var(--vc,1))}
+#gl{position:absolute;inset:0;width:100%;height:100%;pointer-events:none}
 #cv{position:absolute;inset:0;width:100%;height:100%}
 #hud{position:absolute;left:0;right:0;top:0;padding:max(8px,env(safe-area-inset-top)) 12px 8px;background:linear-gradient(#000a,#0000);text-shadow:0 1px 3px #000;pointer-events:none}
 #hud b{font-size:22px;font-variant-numeric:tabular-nums}
@@ -101,6 +103,7 @@ label{display:block;margin:10px 0 4px;color:var(--mut);font-size:14px}
 <!-- ======== SCHERMATA AR ======== -->
 <section id="ar" hidden>
   <video id="vid" playsinline muted autoplay></video>
+  <canvas id="gl" hidden></canvas>
   <canvas id="cv"></canvas>
   <div id="hud"><b id="hudMain">--</b><div id="hudSun"></div><div id="hudAim"></div><div class="w" id="hudWarn"></div></div>
 
@@ -124,13 +127,32 @@ label{display:block;margin:10px 0 4px;color:var(--mut);font-size:14px}
     <label for="north" data-i="north">Correzione del nord (°, positiva verso est)</label>
     <input id="north" type="number" step="0.1" inputmode="decimal">
     <p class="note" data-i="northHelp">Dalla bussola del telefono al nord geografico: in Salento la declinazione è di circa +4°.</p>
-    <label for="anaH" data-i="anaLbl">Analemmi: ore solari medie (es. 6, 9, 12.5)</label>
+    <label for="anaH" data-i="anaLbl">Analemmi: ore da mostrare (es. 6, 9, 12.5)</label>
     <input id="anaH" type="text" inputmode="decimal">
+    <label for="anaTz" data-i="tzLbl">Ora degli analemmi riferita a</label>
+    <select id="anaTz">
+      <option value="solar" data-i="tzSolar">Ora solare media del luogo (senza ora legale)</option>
+      <option value="utc" data-i="tzUtc">UTC (uguale in tutto il mondo)</option>
+      <option value="local" data-i="tzLocal">Orologio del telefono (con ora legale)</option>
+    </select>
+    <p class="note" id="tzNote"></p>
     <div class="row">
       <button id="anaDef" type="button">6–18</button>
       <button id="anaNone" type="button" data-i="anaNone">Nessuno</button>
     </div>
-    <p class="note" data-i="anaHelp">Una curva per ogni ora scelta, con un'etichetta per mese (giorno 21). Valori tra 0 e 24, separati da virgole.</p>
+    <p class="note" data-i="anaHelp">Una curva per ogni ora scelta, con l'ora in alto e un'etichetta per mese (giorno 21). Valori tra 0 e 24, separati da virgole.</p>
+    <label style="display:flex;align-items:center;color:var(--fg)"><input id="flat" type="checkbox"><span data-i="flatLbl">Orizzonte piatto, senza case né paesaggio (solargrafia realistica)</span></label>
+    <h3 style="margin:16px 0 0;font-size:16px" data-i="sunTitle">Visibilità al sole</h3>
+    <label style="display:flex;align-items:center;color:var(--fg)"><input id="hc" type="checkbox"><span data-i="hcLbl">Linee con contorno scuro (più leggibili)</span></label>
+    <label for="lw"><span data-i="lwLbl">Spessore delle linee</span>: <b id="lwVal"></b></label>
+    <input id="lw" type="range" min="100" max="300" step="25">
+    <label for="vb"><span data-i="vbLbl">Luminosità dell'immagine della fotocamera</span>: <b id="vbVal"></b></label>
+    <input id="vb" type="range" min="30" max="100" step="5">
+    <div id="expBox" hidden>
+      <label for="expo"><span data-i="expLbl">Esposizione della fotocamera</span>: <b id="expVal"></b></label>
+      <input id="expo" type="range" step="0.1">
+    </div>
+    <p class="note" data-i="sunHelp">Sotto il sole l'immagine è molto chiara: abbassa la luminosità (e l'esposizione, se disponibile) per far risaltare le linee.</p>
     <h3 style="margin:16px 0 0;font-size:16px" data-i="realTitle">Solargrafia realistica</h3>
     <label for="view" data-i="viewLbl">Cosa mostrare</label>
     <select id="view">
@@ -140,7 +162,11 @@ label{display:block;margin:10px 0 4px;color:var(--mut);font-size:14px}
     </select>
     <label for="ralpha"><span data-i="alphaLbl">Opacità della solargrafia</span>: <b id="ralphaVal"></b></label>
     <input id="ralpha" type="range" min="10" max="95" step="5">
-    <label for="holeAz" data-i="holeLbl">Direzione del foro (°: 0 nord, 90 est, 180 sud, 270 ovest)</label>
+    <label for="qual" data-i="qualLbl">Qualità dell'immagine della solargrafia</label>
+    <select id="qual"><option value="1" data-i="qN">Normale (più veloce)</option><option value="1.6" data-i="qH">Alta (calcolo più lento)</option></select>
+    <label for="holeCard" data-i="holeCardLbl">Direzione del foro (punto cardinale)</label>
+    <select id="holeCard"></select>
+    <label for="holeAz" data-i="holeLbl">oppure in gradi (0 nord, 90 est, 180 sud, 270 ovest)</label>
     <input id="holeAz" type="number" step="1" inputmode="decimal">
     <div class="row" style="margin-top:8px">
       <button id="aimHere" type="button" data-i="aimHere">Usa la direzione del telefono</button>
@@ -154,7 +180,7 @@ label{display:block;margin:10px 0 4px;color:var(--mut);font-size:14px}
 
   <div id="bar">
     <button id="btnSet" type="button" data-i="settings">Regolazioni</button>
-    <button id="btnSim" type="button" data-i="camera">Camera</button>
+    <button id="btnSim" type="button" data-i="camera">Stenopeica</button>
     <button id="btnMap" type="button" data-i="map">Mappa</button>
     <button id="btnDiag" type="button" data-i="diag">Diagnostica</button>
     <button id="btnExit" type="button" data-i="exit">Esci</button>
@@ -162,7 +188,7 @@ label{display:block;margin:10px 0 4px;color:var(--mut);font-size:14px}
 </section>
 
 <div id="sim" class="off">
-  <div id="simHead"><b data-i="simTitle">Camera e simulatore</b><button type="button" class="x" data-close="sim" aria-label="Chiudi">✕</button></div>
+  <div id="simHead"><b data-i="simTitle">Camera stenopeica e simulatore</b><button type="button" class="x" data-close="sim" aria-label="Chiudi">✕</button></div>
   <div id="simBody"></div>
 </div>
 
@@ -342,7 +368,7 @@ tt=(-b+Math.sqrt(b*b-4*A*c0))/(2*A);hx=off+vx*tt;hy=vy*tt;hz=vz*tt;if(!unbounded
 w=hz;cf=Math.abs(vx*hx+vy*hy)/R;rch=R;X=R*wrap(Math.atan2(hy,hx)-PI/2)}
 if(!unbounded&&S<3&&(w<-hh||w>Hn-hh))return false;
 o.X=X;o.Y=-w;o.T=T;o.Eg=sz*cf*rch*rch/(tt*tt);return true}
-function geom(){const R=V.D/2,Xm=S==0?R:S==1?PI*R/2:S==2?Math.min(PI*R,V.Wn/2):PI*R,y0=S==3?V.hh:-(V.Hn-V.hh),y1=S==3?V.hh+V.Hn:V.hh,maxH=Math.max(300,Math.min(900,(window.innerHeight||800)*.84)),maxW=Math.min(1000,Math.max(380,(window.innerWidth||1200)*.78)),sc=Math.min(maxW/(2*Xm),maxH/(y1-y0));
+function geom(){const R=V.D/2,Xm=S==0?R:S==1?PI*R/2:S==2?Math.min(PI*R,V.Wn/2):PI*R,y0=S==3?V.hh:-(V.Hn-V.hh),y1=S==3?V.hh+V.Hn:V.hh,maxH=Math.max(300,Math.min(900,(window.innerHeight||800)*.84)),maxW=Math.min(1000,Math.max(380,(window.innerWidth||1200)*.78)),sc=Math.min(maxW/(2*Xm),maxH/(y1-y0))*(window.__arQ||1);
 return{Xm,y0,y1,sc,W:Math.ceil(2*Xm*sc),H:Math.ceil((y1-y0)*sc),rch:S==0?V.f:S==1?R+V.tw:S==2?V.D:R}}
 function mapCalc(G,B){const n=G.W*G.H,M={G,Et:new Float32Array(n),Tt:new Float32Array(n),Gg:new Float32Array(n),WE:new Float32Array(n),WN:new Float32Array(n),WU:new Float32Array(n),C:new Uint8Array(n),mn:[90,90,90,90],mx:[-1,-1,-1,-1]},{D,f,tw,off}=V,R=D/2,c0=S==1?tw:R;
 for(let py=0;py<G.H;py++)for(let px=0;px<G.W;px++){let X=(px+.5)/G.sc-G.Xm,Y=G.y1-(py+.5)/G.sc,vx,vy,vz;if(raw){X=-X;Y=G.y0+G.y1-Y}
@@ -387,7 +413,7 @@ left--;const v=Math.max(0,Math.min(1,s0+(R()-.5)*.14));h.push(v);run=v<.25?run+1
 if(WX.m.size>=32)WX.m.delete(WX.m.keys().next().value);WX.m.set(key,a);return a}
 function dsun(N,Y){return Math.max(0,Math.min(1,1-(1-wxYear(Y)[N])*V.cl))}
 function cloudT(N,h,sy){if(sy>=.99)return 1;if(sy<=.01)return 0;const c=.5-.2*Math.log(sy/(1-sy))/1.7,t=(h+180)/15,s=N*3.7+SEED*91.1,n=.6*nz1(t/1.3,s)+.4*nz1(t/.3,s+50);return sm(c-.022,c+.022,n)}
-const prof=a=>{const d=((a/rad)%360+360)%360,h=V.hz*rad*(.2+.8*(.6*rnd(Math.floor(d/9)*3.1+5)+.4*rnd(Math.floor(d/3.1)*3.7+11)));return Math.abs(d-190)<.22?Math.max(h,(V.hz*1.5+3)*rad):h};
+const prof=a=>{if(window.__arFlat)return 0;const d=((a/rad)%360+360)%360,h=V.hz*rad*(.2+.8*(.6*rnd(Math.floor(d/9)*3.1+5)+.4*rnd(Math.floor(d/3.1)*3.7+11)));return Math.abs(d-190)<.22?Math.max(h,(V.hz*1.5+3)*rad):h};
 // Vignettatura fisica: illuminazione relativa = cos(angolo foro) · cos(angolo pellicola) · (r0/r)^2 · T,
 // con T = sovrapposizione dei due cerchi (ingresso/uscita) del foro inclinato nella lamiera. Va dal 100% a 0 in modo continuo.
 // L'esponente 0,45 (= 1/2,2) la porta nella scala gamma dell'immagine mostrata.
@@ -396,7 +422,7 @@ function vigF(i){const M=MD;if(!M||!M.Em||V.vg<=0)return 1;return Math.pow(Math.
 // Le tracce del sole hanno già l'esposizione ridotta da Eg·T: qui sfumano solo verso il bordo del campo (T del foro), così restano ben visibili.
 function trkF(i){const M=MD;if(!M||!M.Tm||V.vg<=0)return 1;const q=Math.max(0,Math.min(1,M.Tt[i]/(.12*M.Tm)));return q*q*(3-2*q)}
 function scene(cx,G){
- const n=G.W*G.H,im=cx.createImageData(G.W,G.H),d=im.data,M=MD,AH=V.hz*1.5+3;
+ const n=G.W*G.H,im=cx.createImageData(G.W,G.H),d=im.data,M=MD,AH=window.__arFlat?0:V.hz*1.5+3;
  const clamp=(x,a,b)=>Math.max(a,Math.min(b,x));
  const houses=[[151,3.3,1.25],[158,2.0,1.8],[166,3.6,1.35],[177,4.2,1.65],[190,2.1,1.05],[203,4.1,1.55],[214,3.8,2.0],[224,2.8,1.15]];
  for(let i=0;i<n;i++){
@@ -519,7 +545,7 @@ const vf=trkF(i);cr=VBG[0]+(cr-VBG[0])*vf;cg=VBG[1]+(cg-VBG[1])*vf;cb=VBG[2]+(cb
 const targetLum=.2126*cr+.7152*cg+.0722*cb,lift=Math.max(0,baseLum+1.5-targetLum);
 cr=Math.min(255,cr+lift);cg=Math.min(255,cg+lift);cb=Math.min(255,cb+lift);
 d[bi]=Math.max(0,Math.min(255,br+(cr-br)*w+grain*w));d[bi+1]=Math.max(0,Math.min(255,bg+(cg-bg)*w+grain*w));d[bi+2]=Math.max(0,Math.min(255,bb+(cb-bb)*w+grain*w));}
-cx.putImageData(im,0,0);drawAn(cx,G,B)};
+cx.putImageData(im,0,0);try{window.__arClean&&window.__arClean(cx,G)}catch(e){}drawAn(cx,G,B)};
 TLi=DAYS.length;paint(rp);TL={DAYS,paint:()=>{cv.width=G.W;cv.height=G.H;paint(rp);grabTex();const k=V.rl>=45?1:V.rl<=-45?-1:0;if(k)rotCv(cv,k);if(!TLrun||TLi%10==0)req3d()},reset:()=>AA.forEach(a=>a.fill(0)),add:addDay};$("tsl").max=DAYS.length;$("tsl").value=DAYS.length}
 let TL=null,TLi=0,DYS=[],SHT=true,TLr=0,TLrun=false,ADT=false;const dN=k=>dateInfo(k).N;const AN=new Set();
 const DCL=n=>{const g=2*PI/365*(n-1);return .006918-.399912*cos(g)+.070257*sin(g)-.006758*cos(2*g)+.000907*sin(2*g)-.002697*cos(3*g)+.00148*sin(3*g)},
@@ -618,16 +644,54 @@ const I18N={"Simulatore solargrafia": {"it": "Simulatore solargrafia", "en": "Pi
 const REV={};for(const it in I18N)for(const l in I18N[it])REV[I18N[it][l]]=it;
 const TITLE={it:"Simulatore solargrafia",en:"Pinhole Solargraphy Simulator",es:"Simulador de solargrafía",fr:"Simulateur de solargraphie",de:"Solargrafie-Simulator"};
 let LANG="it";
+
+/* Messaggi che il simulatore compone al volo (con i numeri): tradotti in inglese con regole di frase */
+const DYN_EN = [
+ [/Solstizio sul bordo \(con ([\d,.]+) mm di margine, così la traccia non viene tagliata\)/g, "Solstice on the edge (with $1 mm of margin, so the trace is not cut off)"],
+ [/Solstizio \+ ([\d,.]+) mm/g, "Solstice + $1 mm"],
+ [/Solstizio sul bordo/g, "Solstice on the edge"],
+ [/: inclinazione (-?[\d,.]+)° con il foro a ([\d,.]+) mm dal bordo basso/g, ": tilt $1° with the pinhole $2 mm from the lower edge"],
+ [/\(corretto di (-?[\d,.]+) mm perché l’inclinazione è a gradi interi\)/g, "(corrected by $1 mm because the tilt is in whole degrees)"],
+ [/Il centro del sole cade a ([\d,.]+) mm dal bordo; la lamiera lascia passare il (\d+)% della luce a quell’angolo\./g, "The centre of the sun falls $1 mm from the edge; the sheet lets $2% of the light through at that angle."],
+ [/Con questa geometria il solstizio non può arrivare esattamente a ([\d,.]+) mm dal bordo\. Miglior inclinazione intera: (-?\d+)°; il centro del Sole resta a ([\d,.]+) mm\. Camera: ([\d,.]+) mm, negativo ([\d,.]+) mm, foro a ([\d,.]+) mm dal bordo inferiore, negativo avvolto ([\d,.]+) mm, foro ([\d,.]+) mm e lamiera ([\d,.]+) mm\. Controlla soprattutto posizione del foro e altezza del negativo\./g, "With this geometry the solstice cannot reach exactly $1 mm from the edge. Best whole-degree tilt: $2°; the centre of the Sun stays at $3 mm. Camera: $4 mm, negative $5 mm, pinhole $6 mm from the lower edge, wrapped negative $7 mm, pinhole $8 mm and sheet $9 mm. Check mainly the pinhole position and the negative height."],
+ [/Il solstizio non raggiunge il negativo con questa forma e orientazione\. Controlla che il foro guardi verso il cielo e che lo spessore della lamiera non blocchi il raggio\./g, "The solstice does not reach the negative with this shape and orientation. Check that the pinhole faces the sky and that the sheet thickness does not block the ray."],
+ [/Calcolato in (\d+) ms/g, "Calculated in $1 ms"],
+ [/Errore di calcolo: /g, "Calculation error: "],
+ [/controlla i parametri/g, "check the parameters"],
+ [/Analemma verticale: serve un periodo che comprenda sia il solstizio d’estate sia quello d’inverno\./g, "Vertical analemma: the period must include both the summer and the winter solstice."],
+ [/Analemma verticale alle ([\d:.]+) di ora solare media del luogo \(i due solstizi sono allineati in verticale nell’immagine\)\./g, "Vertical analemma at $1 mean solar time of the place (the two solstices line up vertically in the image)."],
+ [/Analemma verticale: con questa camera non diventa mai perfettamente verticale/g, "Vertical analemma: with this camera it never becomes perfectly vertical"],
+ [/Fotocamera orizzontale: immagine ruotata di 90° in senso antiorario per tenere il cielo in alto\./g, "Camera on its side: image rotated 90° counter-clockwise to keep the sky at the top."],
+ [/Fotocamera orizzontale: immagine ruotata di 90° in senso orario per tenere il cielo in alto\./g, "Camera on its side: image rotated 90° clockwise to keep the sky at the top."],
+ [/Sole alla latitudine ([\d,.]+)° ([NS])(?: \(Casarano\))?, tutto l’anno solare\./g, "Sun at latitude $1° $2, over the whole solar year."],
+ [/Periodo non valido: inserisci due date valide, con la fine successiva all’inizio e un intervallo massimo di 10 anni\./g, "Invalid period: enter two valid dates, with the end after the start and a maximum span of 10 years."]
+];
+DYN_EN.push(
+ [/Campo visivo: (\d+)° × (\d+)° \(orizzontale × verticale\)/g, "Field of view: $1° × $2° (horizontal × vertical)"],
+ [/Distanza foro–carta: ([\d,.]+) mm/g, "Pinhole–paper distance: $1 mm"],
+ [/Rapporto focale geometrico: f\//g, "Geometric focal ratio: f/"],
+ [/Pinhole da ([\d,.]+) mm: troppo piccolo \(diffrazione\)/g, "Pinhole of $1 mm: too small (diffraction)"],
+ [/Pinhole da ([\d,.]+) mm: troppo grande \(sfocato\)/g, "Pinhole of $1 mm: too large (blurry)"],
+ [/Pinhole da ([\d,.]+) mm: nel range giusto/g, "Pinhole of $1 mm: in the right range"],
+ [/Range consigliato per questa focale: ([\d,.]+)–([\d,.]+) mm/g, "Recommended range for this focal length: $1–$2 mm"]
+);
+const DYN_EN_STR = [
+ ["Positivo simulato dopo scansione. Il foro e la larghezza del negativo si calcolano automaticamente in base alla geometria della camera, finché lasci attivi gli automatismi. Il cielo e le nuvole usano un profilo climatico indicativo automatico in base alla latitudine; non è una previsione meteorologica locale. Cambiando annata cambia la sequenza sintetica delle nuvole. Raddrizzata: alto in alto, destra a destra.", "Simulated positive after scanning. The pinhole and the width of the negative are calculated automatically from the camera geometry, as long as you leave the automatic options on. The sky and clouds use an indicative climate profile chosen automatically from the latitude; it is not a local weather forecast. Changing the year changes the synthetic cloud sequence. Straightened: top at the top, right on the right."],
+ ["Posizione del sole alla stessa ora solare media in ogni giorno dell’esposizione (con l’equazione del tempo): disegna la «figura a 8». Non dipende da fuso orario e ora legale.", "Position of the sun at the same mean solar time on each day of the exposure (with the equation of time): it draws the “figure 8”. It does not depend on time zone or daylight saving."],
+ ["Con il foro dove l’hai messo, calcola l’inclinazione della camera perché il sole più alto (solstizio d’estate) tocchi il bordo basso del negativo", "With the pinhole where you put it, calculates the camera tilt so that the highest sun (summer solstice) touches the lower edge of the negative"],
+ ["Come sopra, con 5 mm di margine", "As above, with 5 mm of margin"]
+];
+function trDyn(t){ if(LANG !== "en") return t; let r = t; for(const [a, b] of DYN_EN_STR) if(r.indexOf(a) >= 0) r = r.split(a).join(b); for(const [re, to] of DYN_EN) r = r.replace(re, to); if(r !== t) r = r.replace(/(\d),(\d)/g, "$1.$2"); return r; }
 function trKey(t){const it=REV[t]||t;return I18N[it]?it:null}
 function applyLang(){
  const mo=window.__mo;if(mo)mo.disconnect();
  const w=document.createTreeWalker(document.body,NodeFilter.SHOW_TEXT);let n;
  while(n=w.nextNode()){
   const p=n.parentElement;if(!p||p.closest("script,style"))continue;
-  const raw=n.nodeValue,t=raw.trim();if(!t)continue;const it=trKey(t);if(!it)continue;
+  const raw=n.nodeValue,t=raw.trim();if(!t)continue;const it=trKey(t);if(!it){const dy=trDyn(t);if(dy!==t){n.nodeValue=raw.match(/^\s*/)[0]+dy+raw.match(/\s*$/)[0]}continue}
   const tgt=I18N[it][LANG];if(tgt&&tgt!==t){const lead=raw.match(/^\s*/)[0],tail=raw.match(/\s*$/)[0];n.nodeValue=lead+tgt+tail}
  }
- document.querySelectorAll("[title]").forEach(e=>{const it=trKey(e.title);if(it&&I18N[it][LANG])e.title=I18N[it][LANG]});
+ document.querySelectorAll("[title]").forEach(e=>{const it=trKey(e.title);if(it&&I18N[it][LANG])e.title=I18N[it][LANG];else{const d=trDyn(e.title);if(d!==e.title)e.title=d}});
  document.documentElement.lang=LANG;document.title=TITLE[LANG];
  if(mo)mo.observe(document.body,{childList:true,subtree:true,characterData:true});
 }
@@ -650,13 +714,13 @@ try{const saved=localStorage.getItem("solar_lang");if(saved)setLang(saved)}catch
  place();
 })();
 <\/script>
-<script>window.ARX={get V(){return V},get o(){return o},get G(){return MD&&MD.G},get S(){return S},basis:basis,trace:trace,setV:setV,sched:sched,hbs:hbs,run:run};<\/script>
+<script>window.ARX={get AN(){return AN},get V(){return V},get o(){return o},get G(){return MD&&MD.G},get S(){return S},basis:basis,trace:trace,setV:setV,sched:sched,hbs:hbs,run:run};<\/script>
 </body></html>
 </script>
 
 <script>
 "use strict";
-const VERSION = "AR v5 (passo 4)";
+const VERSION = "AR v7 (passo 4c)";
 const $ = id => document.getElementById(id), rad = Math.PI/180, deg = 180/Math.PI;
 
 /* ---------- Testi (aggiungere una lingua = aggiungere un blocco qui) ---------- */
@@ -681,10 +745,10 @@ const TXT = {
   fov:"Campo visivo della fotocamera, lato lungo (°)",fovHelp:"Se l'orizzonte non coincide con quello vero quando inclini il telefono, regola questo valore.",
   north:"Correzione del nord (°, positiva verso est)",northHelp:"Dalla bussola del telefono al nord geografico: in Salento la declinazione è di circa +4°.",
   az:"Az",incl:"Incl",alt:"Alt",sunNow:"Sole ora",below:"sotto l'orizzonte",
-  anaLbl:"Analemmi: ore solari medie (es. 6, 9, 12.5)",anaHelp:"Una curva per ogni ora scelta, con un'etichetta per mese (giorno 21). Le parti sotto l'orizzonte non sono mostrate. Valori tra 0 e 24, separati da virgole.",anaNone:"Nessuno",
-  camera:"Camera",simTitle:"Camera e simulatore",realTitle:"Solargrafia realistica",viewLbl:"Cosa mostrare",vLines:"Solo linee",vBoth:"Linee + solargrafia realistica",vReal:"Solo solargrafia realistica",
-  alphaLbl:"Opacità della solargrafia",holeLbl:"Direzione del foro (°: 0 nord, 90 est, 180 sud, 270 ovest)",aimHere:"Usa la direzione del telefono",openSim:"Forma, misure, foro…",
-  calc:"Calcolo della solargrafia in corso… può richiedere qualche secondo.",axis:"asse camera",aimLbl:"Foro",aimOk:"Puntamento corretto ✓",simErr:"Il simulatore non si è caricato.",ready:"Solargrafia pronta.",simFail:"Calcolo non riuscito: ",cards:["N","NE","E","SE","S","SO","O","NO"]},
+  anaLbl:"Analemmi: ore da mostrare (es. 6, 9, 12.5)",anaHelp:"Una curva per ogni ora scelta, con l'ora in alto e un'etichetta per mese (giorno 21). Le parti sotto l'orizzonte non sono mostrate. Valori tra 0 e 24, separati da virgole.",anaNone:"Nessuno",
+  camera:"Stenopeica",simTitle:"Camera stenopeica e simulatore",sunTitle:"Visibilità al sole",hcLbl:"Linee con contorno scuro (più leggibili)",lwLbl:"Spessore delle linee",vbLbl:"Luminosità dell'immagine della fotocamera",expLbl:"Esposizione della fotocamera",sunHelp:"Sotto il sole l'immagine è molto chiara: abbassa la luminosità (e l'esposizione, se disponibile) per far risaltare le linee.",qualLbl:"Qualità dell'immagine della solargrafia",qN:"Normale (più veloce)",qH:"Alta (calcolo più lento)",sunOff:"sole",flatLbl:"Orizzonte piatto, senza case né paesaggio (solargrafia realistica)",tzLbl:"Ora degli analemmi riferita a",tzSolar:"Ora solare media del luogo (senza ora legale)",tzUtc:"UTC (uguale in tutto il mondo)",tzLocal:"Orologio del telefono (con ora legale)",tzNoteSolar:"Ora solare media: dipende solo dalla longitudine e non cambia con l'ora legale. È l'ora usata dal simulatore.",tzNoteUtc:"Attenzione: l'UTC non è l'ora del tuo orologio. In Italia è 1 ora indietro in inverno e 2 ore indietro in estate.",tzNoteLocal:"Attenzione: usa il fuso e l'ora legale del telefono. Se non sei nel paese in cui scatti, scegli un'altra opzione.",tzShortUtc:"UTC",tzShortLocal:"orologio",holeCardLbl:"Direzione del foro (punto cardinale)",holeCustom:"Altro valore (vedi gradi)",card16:["Nord","Nord-Nord-Est","Nord-Est","Est-Nord-Est","Est","Est-Sud-Est","Sud-Est","Sud-Sud-Est","Sud","Sud-Sud-Ovest","Sud-Ovest","Ovest-Sud-Ovest","Ovest","Ovest-Nord-Ovest","Nord-Ovest","Nord-Nord-Ovest"],card16s:["N","NNE","NE","ENE","E","ESE","SE","SSE","S","SSO","SO","OSO","O","ONO","NO","NNO"],realTitle:"Solargrafia realistica",viewLbl:"Cosa mostrare",vLines:"Solo linee",vBoth:"Linee + solargrafia realistica",vReal:"Solo solargrafia realistica",
+  alphaLbl:"Opacità della solargrafia",holeLbl:"oppure in gradi (0 nord, 90 est, 180 sud, 270 ovest)",aimHere:"Usa la direzione del telefono",openSim:"Forma, misure, foro…",
+  calc:"Calcolo della solargrafia in corso… può richiedere qualche secondo.",axis:"asse della camera stenopeica",aimLbl:"Foro",aimOk:"Puntamento corretto ✓",simErr:"Il simulatore non si è caricato.",ready:"Solargrafia pronta.",simFail:"Calcolo non riuscito: ",cards:["N","NE","E","SE","S","SO","O","NO"]},
  en:{lang:"Language",title:"Solargraphy AR",sub:"Point your phone: see the sun's path for the chosen period over the camera view.",
   beta:"Test version (step 4). On iPhone the compass is experimental.",loc:"Location",gps:"Find my location",lat:"Latitude (°)",lon:"Longitude (°)",
   locHelp:"You can also type the coordinates by hand (positive north and east).",start:"Start AR",
@@ -705,10 +769,10 @@ const TXT = {
   fov:"Camera field of view, long side (°)",fovHelp:"If the horizon does not match the real one when you tilt the phone, adjust this value.",
   north:"North correction (°, positive toward east)",northHelp:"From the phone compass to true north: in Salento declination is about +4°.",
   az:"Az",incl:"Tilt",alt:"Alt",sunNow:"Sun now",below:"below the horizon",
-  anaLbl:"Analemmas: mean solar hours (e.g. 6, 9, 12.5)",anaHelp:"One curve per chosen hour, with one label per month (day 21). Parts below the horizon are not shown. Values from 0 to 24, comma separated.",anaNone:"None",
-  camera:"Camera",simTitle:"Camera and simulator",realTitle:"Realistic solargraph",viewLbl:"What to show",vLines:"Lines only",vBoth:"Lines + realistic solargraph",vReal:"Realistic solargraph only",
-  alphaLbl:"Solargraph opacity",holeLbl:"Pinhole direction (°: 0 north, 90 east, 180 south, 270 west)",aimHere:"Use the phone direction",openSim:"Shape, size, pinhole…",
-  calc:"Computing the solargraph… it may take a few seconds.",axis:"camera axis",aimLbl:"Pinhole",aimOk:"Aim is correct ✓",simErr:"The simulator did not load.",ready:"Solargraph ready.",simFail:"Calculation failed: ",cards:["N","NE","E","SE","S","SW","W","NW"]}
+  anaLbl:"Analemmas: hours to show (e.g. 6, 9, 12.5)",anaHelp:"One curve per chosen hour, with the hour on top and one label per month (day 21). Parts below the horizon are not shown. Values from 0 to 24, comma separated.",anaNone:"None",
+  camera:"Pinhole cam",simTitle:"Pinhole camera and simulator",sunTitle:"Visibility in sunlight",hcLbl:"Lines with a dark outline (easier to read)",lwLbl:"Line thickness",vbLbl:"Camera image brightness",expLbl:"Camera exposure",sunHelp:"In direct sun the image is very bright: lower the brightness (and the exposure, if available) so the lines stand out.",qualLbl:"Solargraph image quality",qN:"Normal (faster)",qH:"High (slower calculation)",sunOff:"sun",flatLbl:"Flat horizon, no houses or landscape (realistic solargraph)",tzLbl:"Analemma hours refer to",tzSolar:"Local mean solar time (no daylight saving)",tzUtc:"UTC (the same everywhere)",tzLocal:"Phone clock (with daylight saving)",tzNoteSolar:"Mean solar time: it depends only on longitude and does not change with daylight saving. It is the time used by the simulator.",tzNoteUtc:"Note: UTC is not your clock time. In Italy it is 1 hour behind in winter and 2 hours behind in summer.",tzNoteLocal:"Note: this uses the phone's time zone and daylight saving. If you are not in the country where you take the photo, choose another option.",tzShortUtc:"UTC",tzShortLocal:"clock",holeCardLbl:"Pinhole direction (compass point)",holeCustom:"Other value (see degrees)",card16:["North","North-northeast","Northeast","East-northeast","East","East-southeast","Southeast","South-southeast","South","South-southwest","Southwest","West-southwest","West","West-northwest","Northwest","North-northwest"],card16s:["N","NNE","NE","ENE","E","ESE","SE","SSE","S","SSW","SW","WSW","W","WNW","NW","NNW"],realTitle:"Realistic solargraph",viewLbl:"What to show",vLines:"Lines only",vBoth:"Lines + realistic solargraph",vReal:"Realistic solargraph only",
+  alphaLbl:"Solargraph opacity",holeLbl:"or in degrees (0 north, 90 east, 180 south, 270 west)",aimHere:"Use the phone direction",openSim:"Shape, size, pinhole…",
+  calc:"Computing the solargraph… it may take a few seconds.",axis:"pinhole camera axis",aimLbl:"Pinhole",aimOk:"Aim is correct ✓",simErr:"The simulator did not load.",ready:"Solargraph ready.",simFail:"Calculation failed: ",cards:["N","NE","E","SE","S","SW","W","NW"]}
 };
 let LANG = "it";
 const t = k => (TXT[LANG] && TXT[LANG][k]) || TXT.en[k] || k;
@@ -720,7 +784,7 @@ function applyLang(){
 function ld(k, d){ try{ const v = localStorage.getItem(k); return v === null ? d : v; }catch(e){ return d; } }
 function sv(k, v){ try{ localStorage.setItem(k, v); }catch(e){} }
 { const s = ld("solar_lang", (navigator.language || "it").slice(0,2)); LANG = TXT[s] ? s : "it"; }   // stessa chiave del simulatore
-$("lang").onchange = e => { LANG = e.target.value; sv("solar_lang", LANG); applyLang(); };
+$("lang").onchange = e => { LANG = e.target.value; sv("solar_lang", LANG); applyLang(); try{ buildCardOpts(); tzNote(); if(SIMW && SIMW.setLang){ SIMW.setLang(LANG); if(SIMW.ARX){ simDirty = true; SIMW.ARX.sched(); } } }catch(er){} };
 applyLang();
 
 const fm = (x, n=1) => x.toFixed(n).replace(".", LANG === "it" ? "," : ".");
@@ -812,6 +876,9 @@ let ANA = [], ANA_HOURS = [];   // analemmi: dichiarati qui, prima di ogni uso
 let VIEW = ld("ar_view", "lines"), RALPHA = (+ld("ar_ralpha", "60") || 60)/100;   // vista: lines | both | real
 let SIM = null, SIMW = null, RZ = null, simDirty = true, simOpen = false, simQ = [], simFail = "", CAM = {az: 0, el: 0};
 let rcv = null, rcx = null, rim = null;
+let HC = ld("ar_hc", "1") === "1", LWM = (+ld("ar_lw", "150") || 150)/100, VB = +ld("ar_vb", "75") || 75, QUAL = ld("ar_q", "1") === "1.6" ? 1.6 : 1;
+let FLAT = ld("ar_flat", "1") === "1", ANA_TZ = ld("ar_anatz", "solar"), CLEAN = null, anSig = "";
+let GLS = null, lutTok = 0, lutBusy = false;   // GLS: renderer WebGL della solargrafia realistica (null = non provato, false = non disponibile)
 const ANA_COLS = ["#ff6fd8", "#6fb4ff", "#7dff9a", "#ffa86f", "#c79bff", "#ffe36f", "#6ff5e6"];
 let SHOW = ld("ar_show", "1") === "1", MODE = ld("ar_mode", "month");
 function dayArc(dayMs, lat, lon){   // un giorno: dal mezzogiorno solare -12 h a +12 h, un punto ogni 10 minuti, solo sopra l'orizzonte
@@ -965,7 +1032,7 @@ async function startAR(){
     msg.textContent = (e && e.name === "NotAllowedError") ? t("errCamDenied") : t("errCam") + (e && e.message ? e.message : e);
     return;
   }
-  $("vid").srcObject = stream;
+  $("vid").srcObject = stream; setupExposure();
   try{ await $("vid").play(); }catch(e){}
   buildArcs(la);
   if(SIM) pushToSim(); else if(VIEW !== "lines") ensureSim();
@@ -979,7 +1046,7 @@ function stopAR(){
   if(simOpen){ simOpen = false; $("sim").classList.add("off"); pullFromSim(); }
   if(stream){ stream.getTracks().forEach(tr => tr.stop()); stream = null; }
   try{ if(wake){ wake.release(); wake = null; } }catch(e){}
-  $("ar").hidden = true; $("home").hidden = false;
+  $("ar").hidden = true; $("home").hidden = false; if(GLS) GLS.c.hidden = true;
 }
 $("startBtn").onclick = startAR;
 $("btnExit").onclick = stopAR;
@@ -1008,9 +1075,52 @@ $("anaNone").onclick = () => { $("anaH").value = ""; anaApply(); };
 $("view").value = VIEW; $("ralpha").value = Math.round(RALPHA*100); $("ralphaVal").textContent = Math.round(RALPHA*100) + "%";
 $("view").onchange = e => { VIEW = e.target.value; sv("ar_view", VIEW); if(VIEW !== "lines"){ ensureSim(); if(SIMW) pushToSim(); } };
 $("ralpha").oninput = e => { RALPHA = +e.target.value/100; $("ralphaVal").textContent = e.target.value + "%"; sv("ar_ralpha", e.target.value); };
-$("holeAz").onchange = e => { const v = num(e.target.value); if(!isFinite(v)) return; withSim(X => { X.V.hd = wrap360(v); X.hbs(); X.sched(); }); };
-$("aimHere").onclick = () => withSim(X => { X.V.hd = Math.round(CAM.az*10)/10; X.setV("tl", Math.max(-90, Math.min(90, CAM.el))); X.hbs(); X.sched(); $("holeAz").value = X.V.hd; });
+$("holeAz").onchange = e => { const v = num(e.target.value); if(!isFinite(v)) return; setHole(v); };
+$("aimHere").onclick = () => withSim(X => { X.V.hd = Math.round(CAM.az*10)/10; X.setV("tl", Math.max(-90, Math.min(90, CAM.el))); X.hbs(); X.sched(); $("holeAz").value = X.V.hd; syncCard(); });
 $("openSim").onclick = $("btnSim").onclick = openSim;
+/* Visibilità al sole */
+const applyVB = () => { $("vid").style.setProperty("--vb", VB/100); $("vid").style.setProperty("--vc", 1 + (100 - VB)/250); $("vbVal").textContent = VB + "%"; };
+$("hc").checked = HC; $("hc").onchange = e => { HC = e.target.checked; sv("ar_hc", HC ? "1" : "0"); };
+$("lw").value = Math.round(LWM*100); $("lwVal").textContent = "×" + fm(LWM); $("lw").oninput = e => { LWM = +e.target.value/100; $("lwVal").textContent = "×" + fm(LWM); sv("ar_lw", e.target.value); };
+$("vb").value = VB; applyVB(); $("vb").oninput = e => { VB = +e.target.value; applyVB(); sv("ar_vb", VB); };
+$("qual").value = String(QUAL); 
+$("qual").onchange = e => { QUAL = +e.target.value; sv("ar_q", e.target.value); if(SIMW) SIMW.__arQ = QUAL; if(SIMW && SIMW.ARX){ simDirty = true; SIMW.ARX.sched(); } };
+/* Riferimento orario degli analemmi */
+const tzNote = () => { $("tzNote").textContent = t(ANA_TZ === "utc" ? "tzNoteUtc" : ANA_TZ === "local" ? "tzNoteLocal" : "tzNoteSolar"); };
+$("anaTz").value = ANA_TZ; tzNote();
+$("anaTz").onchange = e => { ANA_TZ = e.target.value; sv("ar_anatz", ANA_TZ); tzNote(); buildAnalemmas(readLoc()); };
+/* Orizzonte piatto (il paesaggio inventato del simulatore non serve per capire dove sta il sole) */
+$("flat").checked = FLAT;
+$("flat").onchange = e => { FLAT = e.target.checked; sv("ar_flat", FLAT ? "1" : "0"); if(SIMW){ SIMW.__arFlat = FLAT; if(SIMW.ARX){ simDirty = true; SIMW.ARX.sched(); } } };
+/* Direzione del foro: punto cardinale (16 direzioni) o gradi */
+function buildCardOpts(){
+  const sel = $("holeCard"), cur = sel.value, full = t("card16"), ab = t("card16s"); sel.innerHTML = "";
+  full.forEach((n, i) => { const o = document.createElement("option"); o.value = i*22.5; o.textContent = n + " (" + ab[i] + ") · " + fm(i*22.5, i % 2 ? 1 : 0) + "°"; sel.appendChild(o); });
+  const c = document.createElement("option"); c.value = "x"; c.textContent = t("holeCustom"); sel.appendChild(c);
+  sel.value = cur || "x"; syncCard();
+}
+function syncCard(){
+  const sel = $("holeCard"), v = num($("holeAz").value); if(!isFinite(v)){ sel.value = "x"; return; }
+  const w = wrap360(v), k = Math.round(w/22.5)%16; sel.value = Math.abs(wrap180(w - k*22.5)) < 0.05 ? String(k*22.5) : "x";
+}
+function setHole(v){ withSim(X => { X.V.hd = wrap360(v); X.hbs(); X.sched(); }); $("holeAz").value = +wrap360(v).toFixed(1); syncCard(); }
+$("holeCard").onchange = e => { if(e.target.value !== "x") setHole(+e.target.value); };
+buildCardOpts();
+/* Esposizione: solo dove il browser la permette (in genere Chrome su Android) */
+function setupExposure(){
+  const box = $("expBox"); box.hidden = true;
+  try{
+    const tk = stream && stream.getVideoTracks()[0], c = tk && tk.getCapabilities ? tk.getCapabilities() : null;
+    if(!c || !c.exposureCompensation || !(c.exposureCompensation.max > c.exposureCompensation.min)) return;
+    const e = c.exposureCompensation, inp = $("expo"); inp.min = e.min; inp.max = e.max; inp.step = e.step || 0.1;
+    const saved = +ld("ar_exp", "NaN"), v = isFinite(saved) ? Math.max(e.min, Math.min(e.max, saved)) : Math.min(0, e.max);
+    inp.value = v; $("expVal").textContent = fm(+v);
+    const go = x => tk.applyConstraints({advanced: [{exposureCompensation: x}]}).catch(() => {});
+    inp.oninput = ev => { const x = +ev.target.value; $("expVal").textContent = fm(x); sv("ar_exp", x); go(x); };
+    if(isFinite(saved)) go(v);
+    box.hidden = false;
+  }catch(e){}
+}
 document.querySelectorAll("[data-close]").forEach(b => b.onclick = () => {
   const k = b.dataset.close;
   if(k === "panel") $("panel").hidden = true;
@@ -1040,13 +1150,22 @@ function buildAnalemmas(la){
     const n = 366, v = new Float32Array(3*n), lbl = [];
     for(let i = 0; i < n; i++){
       const day = a + i*864e5;
-      // ora solare media h: UTC = h*60 - 4*lon (minuti); sunPos aggiunge l'equazione del tempo
-      const s = sunPos(day + (h*60 - 4*la.lon)*60000, la.lat, la.lon), az = s.az*rad, e = s.el*rad;
+      // solar: ora solare media h (UTC = h*60 - 4*lon minuti; sunPos aggiunge l'equazione del tempo). utc: h è già UTC. local: h dell'orologio del telefono, con ora legale di quel giorno
+      let ms;
+      if(ANA_TZ === "utc") ms = day + h*3600000;
+      else if(ANA_TZ === "local"){ const d0 = new Date(day); ms = new Date(d0.getUTCFullYear(), d0.getUTCMonth(), d0.getUTCDate(), Math.floor(h), Math.round((h - Math.floor(h))*60)).getTime(); }
+      else ms = day + (h*60 - 4*la.lon)*60000;
+      const s = sunPos(ms, la.lat, la.lon), az = s.az*rad, e = s.el*rad;
       v[3*i] = Math.cos(e)*Math.sin(az); v[3*i+1] = Math.cos(e)*Math.cos(az); v[3*i+2] = Math.sin(e);
       if(new Date(day).getUTCDate() === 21) lbl.push({i, text: dateLabel(day)});
     }
     ANA.push({v, n, lbl, col: ANA_COLS[k % ANA_COLS.length], h});
   });
+}
+/* Traccia il percorso corrente; con "alto contrasto" prima un contorno scuro più largo, poi la linea colorata */
+function strokeHC(){
+  if(HC){ const c = cx.strokeStyle, w = cx.lineWidth; cx.strokeStyle = "#000c"; cx.lineWidth = w + 3; cx.stroke(); cx.strokeStyle = c; cx.lineWidth = w; }
+  cx.stroke();
 }
 /* Come arcPath, ma interrompe la curva quando il sole è sotto l'orizzonte */
 function anaPath(an, A, fl){
@@ -1060,7 +1179,7 @@ function anaPath(an, A, fl){
     const px = W/2 + (x*r[0] + y*r[1] + z*r[2])/zc*fl, py = H/2 - (x*u[0] + y*u[1] + z*u[2])/zc*fl;
     pen ? cx.lineTo(px, py) : cx.moveTo(px, py); pen = true;
   }
-  cx.stroke();
+  strokeHC();
 }
 /* Proietta il punto i di un analemma; null se dietro la fotocamera */
 function anaPoint(an, i, A, fl){
@@ -1068,10 +1187,11 @@ function anaPoint(an, i, A, fl){
   if(zc < 0.05) return null;
   return [W/2 + (x*A.r[0] + y*A.r[1] + z*A.r[2])/zc*fl, H/2 - (x*A.u[0] + y*A.u[1] + z*A.u[2])/zc*fl];
 }
+const fmtHour = h => { let hh = Math.floor(h), mm = Math.round((h - hh)*60); if(mm === 60){ hh++; mm = 0; } return hh + ":" + String(mm).padStart(2, "0"); };
 function drawAnalemmas(A, fl){
   if(!ANA.length) return;
   cx.setLineDash([]);
-  for(const an of ANA){ cx.strokeStyle = an.col; cx.lineWidth = 2; anaPath(an, A, fl); }
+  for(const an of ANA){ cx.strokeStyle = an.col; cx.lineWidth = 1.4*LWM; anaPath(an, A, fl); }
   cx.font = "700 12px system-ui,sans-serif"; cx.lineWidth = 3; cx.strokeStyle = "#000b";
   for(const an of ANA){
     cx.fillStyle = an.col;
@@ -1080,6 +1200,21 @@ function drawAnalemmas(A, fl){
       const p = anaPoint(an, L.i, A, fl); if(!p) continue;
       cx.strokeText(L.text, p[0], p[1] - 8); cx.fillText(L.text, p[0], p[1] - 8);
     }
+  }
+  // l'ora solare media di ogni analemma, in un'etichetta sul punto più alto visibile sullo schermo
+  cx.font = "800 14px system-ui,sans-serif"; cx.textAlign = "center";
+  for(const an of ANA){
+    let best = -1, bz = -2, bp = null;
+    for(let i = 0; i < an.n; i += 2){
+      const z = an.v[3*i+2]; if(z < 0 || z <= bz) continue;
+      const p = anaPoint(an, i, A, fl); if(!p || p[0] < 24 || p[0] > W - 24 || p[1] < 140 || p[1] > H - 120) continue;
+      best = i; bz = z; bp = p;
+    }
+    if(best < 0) continue;
+    const txt = fmtHour(an.h) + (ANA_TZ === "utc" ? " " + t("tzShortUtc") : ANA_TZ === "local" ? " " + t("tzShortLocal") : ""), w = cx.measureText(txt).width + 14, x = bp[0], y = bp[1] - 30;
+    cx.beginPath(); cx.arc(bp[0], bp[1], 4, 0, 2*Math.PI); cx.fillStyle = an.col; cx.fill(); cx.lineWidth = 1.5; cx.strokeStyle = "#000"; cx.stroke();
+    cx.beginPath(); cx.roundRect(x - w/2, y - 11, w, 22, 11); cx.fillStyle = "#000c"; cx.fill(); cx.lineWidth = 2; cx.strokeStyle = an.col; cx.stroke();
+    cx.fillStyle = "#fff"; cx.fillText(txt, x, y + 1);
   }
 }
 
@@ -1091,7 +1226,7 @@ function ensureSim(){
   fr.addEventListener("load", () => {
     SIMW = fr.contentWindow;
     if(!SIMW.ARX){ simFail = t("simErr"); return; }
-    SIMW.__arGrab = simGrab; SIMW.__arDirty = () => { simDirty = true; };
+    SIMW.__arGrab = simGrab; SIMW.__arDirty = () => { simDirty = true; lutTok++; lutBusy = false; }; SIMW.__arQ = QUAL; SIMW.__arFlat = FLAT; SIMW.__arClean = (c2, G2) => { try{ CLEAN = c2.getImageData(0, 0, G2.W, G2.H); }catch(er){ CLEAN = null; } };
     pushToSim(true);
     simQ.splice(0).forEach(fn => { try{ fn(SIMW.ARX); }catch(e){} });
   });
@@ -1102,10 +1237,11 @@ function withSim(fn){ if(SIMW && SIMW.ARX) fn(SIMW.ARX); else { simQ.push(fn); e
 function simGrab(){
   const X = SIMW.ARX, G = X.G, c = SIMW.document.getElementById("c1");
   if(!G || !c || !c.width) return;
-  const id = c.getContext("2d").getImageData(0, 0, c.width, c.height), B = X.basis();
+  const id = (CLEAN && CLEAN.width === c.width && CLEAN.height === c.height) ? CLEAN : c.getContext("2d").getImageData(0, 0, c.width, c.height), B = X.basis();
   RZ = {px: id.data, w: id.width, h: id.height, Xm: G.Xm, y1: G.y1, sc: G.sc, B: {x: [...B.x], u: [...B.u], z: [...B.z]}};
   simDirty = false; simFail = "";
   const h = $("holeAz"); if(h && document.activeElement !== h) h.value = +X.V.hd.toFixed(1);
+  buildLut(RZ);
 }
 /* Porta nel simulatore luogo e periodo dell'AR; ricalcola solo se qualcosa è cambiato */
 function pushToSim(force){
@@ -1132,7 +1268,11 @@ function pullFromSim(){
   const la = readLoc();
   if(la && Math.abs(X.V.lat - la.lat) > 5e-4 && Math.abs(X.V.lat) <= 90){ $("lat").value = (+X.V.lat).toFixed(5); saveLoc(); redo = true; }
   if(redo) buildArcs(readLoc());
-  const h = $("holeAz"); if(h) h.value = +X.V.hd.toFixed(1);
+  try{   // analemmi scelti nel simulatore: l'AR li disegna nitidi, come i suoi
+    const set = [...X.AN].sort((p, q) => p - q), sig = set.join(",");
+    if(sig !== anSig){ anSig = sig; if(set.length){ ANA_HOURS = set; $("anaH").value = set.join(", "); sv("ar_ana", set.join(",")); if(ANA_TZ !== "solar"){ ANA_TZ = "solar"; $("anaTz").value = "solar"; sv("ar_anatz", "solar"); tzNote(); } buildAnalemmas(readLoc()); } }
+  }catch(er){}
+  const h = $("holeAz"); if(h) h.value = +X.V.hd.toFixed(1); syncCard();
 }
 function openSim(){ ensureSim(); simOpen = true; $("sim").classList.remove("off"); $("panel").hidden = true; $("diag").hidden = true; $("diagBtns").hidden = true; }
 function closeSim(){ if(!simOpen) return; simOpen = false; $("sim").classList.add("off"); pullFromSim(); }
@@ -1157,6 +1297,97 @@ function drawReal(A, fl){
   }
   rcx.putImageData(rim, 0, 0);
   cx.globalAlpha = RALPHA; cx.imageSmoothingEnabled = true; cx.drawImage(rcv, 0, 0, W, H); cx.globalAlpha = 1;
+}
+
+/* ---------- Solargrafia realistica sulla GPU (WebGL2) ----------
+   1) Una volta per ogni calcolo del simulatore: per ogni direzione del cielo (passo 0,25°, da -60° a +90° di altezza) si
+      calcola con la stessa ottica del simulatore il punto della carta; la tabella va in una texture.
+   2) Ad ogni fotogramma: per ogni pixel dello schermo la GPU ricava la direzione, legge la tabella (interpolando) e prende il colore
+      dall'immagine della carta, in piena risoluzione. Niente calcoli per pixel sulla CPU, quindi niente scatti. */
+const GL_VS = `#version 300 es
+void main(){ vec2 p = vec2(float((gl_VertexID << 1) & 2), float(gl_VertexID & 2)); gl_Position = vec4(p*2.0 - 1.0, 0.0, 1.0); }`;
+const GL_FS = `#version 300 es
+precision highp float; precision highp int; precision highp sampler2D;
+uniform sampler2D uPaper; uniform sampler2D uLut;
+uniform vec2 uBuf; uniform vec2 uScr; uniform float uFl; uniform vec3 uF; uniform vec3 uR; uniform vec3 uU;
+uniform ivec2 uN; uniform float uEl0; uniform float uStep; uniform float uAlpha;
+out vec4 o;
+vec4 L(int ix, int iy){ ix = ((ix % uN.x) + uN.x) % uN.x; iy = clamp(iy, 0, uN.y - 1); return texelFetch(uLut, ivec2(ix, iy), 0); }
+void main(){
+  vec2 q = gl_FragCoord.xy / uBuf; float a = (q.x*uScr.x - uScr.x*0.5)/uFl, b = (q.y*uScr.y - uScr.y*0.5)/uFl;
+  vec3 d = normalize(uF + uR*a + uU*b);
+  float az = atan(d.x, d.y); if(az < 0.0) az += 6.28318530718;
+  float el = degrees(asin(clamp(d.z, -1.0, 1.0)));
+  if(el < uEl0){ discard; }
+  float fx = degrees(az)/uStep - 0.5, fy = (el - uEl0)/uStep - 0.5;
+  int ix = int(floor(fx)), iy = int(floor(fy)); float tx = fx - float(ix), ty = fy - float(iy);
+  vec4 c00 = L(ix, iy), c10 = L(ix+1, iy), c01 = L(ix, iy+1), c11 = L(ix+1, iy+1);
+  float w00 = (1.0-tx)*(1.0-ty)*c00.z, w10 = tx*(1.0-ty)*c10.z, w01 = (1.0-tx)*ty*c01.z, w11 = tx*ty*c11.z;
+  float ws = w00 + w10 + w01 + w11;
+  if(ws < 0.02){ discard; }
+  vec2 uv = (c00.xy*w00 + c10.xy*w10 + c01.xy*w01 + c11.xy*w11)/ws;
+  float k = smoothstep(0.2, 0.8, ws) * uAlpha;
+  o = vec4(texture(uPaper, uv).rgb * k, k);
+}`;
+function glInit(){
+  if(GLS !== null) return GLS;
+  try{
+    const c = $("gl"), g = c.getContext("webgl2", {alpha: true, premultipliedAlpha: true, antialias: false, depth: false, stencil: false});
+    if(!g) return GLS = false;
+    const mk = (ty, src) => { const sh = g.createShader(ty); g.shaderSource(sh, src); g.compileShader(sh); if(!g.getShaderParameter(sh, g.COMPILE_STATUS)) throw new Error(g.getShaderInfoLog(sh)); return sh; };
+    const pr = g.createProgram(); g.attachShader(pr, mk(g.VERTEX_SHADER, GL_VS)); g.attachShader(pr, mk(g.FRAGMENT_SHADER, GL_FS)); g.linkProgram(pr);
+    if(!g.getProgramParameter(pr, g.LINK_STATUS)) throw new Error(g.getProgramInfoLog(pr));
+    const U = {}; ["uPaper","uLut","uBuf","uScr","uFl","uF","uR","uU","uN","uEl0","uStep","uAlpha"].forEach(n => { U[n] = g.getUniformLocation(pr, n); });
+    const tx = filt => { const x = g.createTexture(); g.bindTexture(g.TEXTURE_2D, x); g.texParameteri(g.TEXTURE_2D, g.TEXTURE_MIN_FILTER, filt); g.texParameteri(g.TEXTURE_2D, g.TEXTURE_MAG_FILTER, filt); g.texParameteri(g.TEXTURE_2D, g.TEXTURE_WRAP_S, g.CLAMP_TO_EDGE); g.texParameteri(g.TEXTURE_2D, g.TEXTURE_WRAP_T, g.CLAMP_TO_EDGE); return x; };
+    c.addEventListener("webglcontextlost", ev => { ev.preventDefault(); GLS = false; c.hidden = true; });
+    return GLS = {g, c, pr, U, paper: tx(g.LINEAR), lut: tx(g.NEAREST), ok: false, na: 0, ne: 0, el0: -60, st: 0.25};
+  }catch(e){ GL_ERR = String(e && e.message || e); return GLS = false; }
+}
+let GL_ERR = "";
+/* Tabella direzione del cielo → punto della carta, calcolata a pezzi per non bloccare lo schermo */
+function buildLut(rz){
+  const S = glInit(); lutTok++;
+  if(!S){ lutBusy = false; return; }
+  const tok = lutTok; lutBusy = true;
+  const X = SIMW.ARX, tr = X.trace, o = X.o, B = rz.B, bx = B.x, bu = B.u, bz = B.z, Xm = rz.Xm, y1 = rz.y1, sc = rz.sc, sw = rz.w, sh = rz.h;
+  const ST = S.st, EL0 = S.el0, NA = Math.round(360/ST), NE = Math.ceil((90 - EL0)/ST), data = new Float32Array(NA*NE*4);
+  let iy = 0;
+  const chunk = () => {
+    if(tok !== lutTok || !SIMW || !SIMW.ARX) return;                       // c'è già un calcolo più recente
+    const tEnd = performance.now() + 14;
+    while(iy < NE && performance.now() < tEnd){
+      const el = (EL0 + (iy + 0.5)*ST)*rad, ce = Math.cos(el), se = Math.sin(el);
+      for(let ix = 0; ix < NA; ix++){
+        const az = (ix + 0.5)*ST*rad, e = ce*Math.sin(az), n = ce*Math.cos(az), z = se;
+        let ok = false; try{ ok = tr(e*bx[0] + n*bx[1] + z*bx[2], e*bu[0] + n*bu[1] + z*bu[2], e*bz[0] + n*bz[1] + z*bz[2]); }catch(er){}
+        if(!ok) continue;
+        const u = (o.X + Xm)*sc, v = (y1 - o.Y)*sc;
+        if(u >= 0 && u < sw && v >= 0 && v < sh){ const k = 4*(iy*NA + ix); data[k] = u/sw; data[k+1] = v/sh; data[k+2] = 1; }
+      }
+      iy++;
+    }
+    if(iy < NE){ setTimeout(chunk, 0); return; }
+    const g = S.g;
+    g.bindTexture(g.TEXTURE_2D, S.paper); g.pixelStorei(g.UNPACK_ALIGNMENT, 4);
+    g.texImage2D(g.TEXTURE_2D, 0, g.RGBA, sw, sh, 0, g.RGBA, g.UNSIGNED_BYTE, new Uint8Array(rz.px.buffer, rz.px.byteOffset, rz.px.byteLength));
+    g.bindTexture(g.TEXTURE_2D, S.lut);
+    g.texImage2D(g.TEXTURE_2D, 0, g.RGBA32F, NA, NE, 0, g.RGBA, g.FLOAT, data);
+    S.na = NA; S.ne = NE; S.ok = true; lutBusy = false;
+  };
+  chunk();
+}
+function glDraw(A, fl){
+  const S = GLS, g = S.g, c = S.c, U = S.U, dpr = Math.min(window.devicePixelRatio || 1, 2), bw = Math.round(W*dpr), bh = Math.round(H*dpr);
+  if(c.width !== bw || c.height !== bh){ c.width = bw; c.height = bh; }
+  c.hidden = false;
+  g.viewport(0, 0, bw, bh); g.clearColor(0, 0, 0, 0); g.clear(g.COLOR_BUFFER_BIT); g.disable(g.BLEND);
+  g.useProgram(S.pr);
+  g.activeTexture(g.TEXTURE0); g.bindTexture(g.TEXTURE_2D, S.paper); g.uniform1i(U.uPaper, 0);
+  g.activeTexture(g.TEXTURE1); g.bindTexture(g.TEXTURE_2D, S.lut); g.uniform1i(U.uLut, 1);
+  g.uniform2f(U.uBuf, bw, bh); g.uniform2f(U.uScr, W, H); g.uniform1f(U.uFl, fl);
+  g.uniform3f(U.uF, A.f[0], A.f[1], A.f[2]); g.uniform3f(U.uR, A.r[0], A.r[1], A.r[2]); g.uniform3f(U.uU, A.u[0], A.u[1], A.u[2]);
+  g.uniform2i(U.uN, S.na, S.ne); g.uniform1f(U.uEl0, S.el0); g.uniform1f(U.uStep, S.st); g.uniform1f(U.uAlpha, RALPHA);
+  g.drawArrays(g.TRIANGLES, 0, 3);
 }
 /* Assistente di puntamento: dove guarda il foro della camera e di quanto manca */
 function drawAim(P, camAz, camEl){
@@ -1223,7 +1454,7 @@ function arcPath(a, A, fl){
     const px = W/2 + (x*r[0] + y*r[1] + z*r[2])/zc*fl, py = H/2 - (x*u[0] + y*u[1] + z*u[2])/zc*fl;
     pen ? cx.lineTo(px, py) : cx.moveTo(px, py); pen = true;
   }
-  cx.stroke();
+  strokeHC();
 }
 function arcLabel(a, A, fl, text){
   const x = a.v[3*a.top], y = a.v[3*a.top+1], z = a.v[3*a.top+2], zc = x*A.f[0] + y*A.f[1] + z*A.f[2]; if(zc < 0.05) return;
@@ -1231,11 +1462,28 @@ function arcLabel(a, A, fl, text){
   cx.strokeText(text, px, py - 10); cx.fillText(text, px, py - 10);
 }
 function drawSun(A, P, sun){
-  const p = P(sun.az, sun.el); if(!p) return;
-  cx.setLineDash([]); cx.beginPath(); cx.arc(p[0], p[1], 14, 0, 2*Math.PI);
-  cx.fillStyle = sun.el > -0.8 ? "#ffd84d" : "#ffd84d66"; cx.fill(); cx.lineWidth = 3; cx.strokeStyle = "#fff"; cx.stroke();
-  cx.fillStyle = "#fff"; cx.strokeStyle = "#000a"; cx.font = "700 13px system-ui,sans-serif";
-  cx.strokeText(t("sunNow"), p[0], p[1] + 28); cx.fillText(t("sunNow"), p[0], p[1] + 28);
+  const p = P(sun.az, sun.el), up = sun.el > -0.8;
+  const a = sun.az*rad, e = sun.el*rad, d = [Math.cos(e)*Math.sin(a), Math.cos(e)*Math.cos(a), Math.sin(e)];
+  const inside = p && p[0] > 20 && p[0] < W - 20 && p[1] > 20 && p[1] < H - 20;
+  cx.setLineDash([]);
+  if(!inside){   // freccia sul bordo dello schermo: da che parte si trova il sole
+    const dx = dot(d, A.r), dy = -dot(d, A.u), m = Math.hypot(dx, dy) || 1, ux = dx/m, uy = dy/m;
+    const k = Math.min((W/2 - 34)/Math.max(Math.abs(ux), 1e-6), (H/2 - 110)/Math.max(Math.abs(uy), 1e-6)), x = W/2 + ux*k, y = H/2 + uy*k, ang = Math.atan2(uy, ux);
+    cx.save(); cx.translate(x, y); cx.rotate(ang); cx.beginPath(); cx.moveTo(18, 0); cx.lineTo(-10, -13); cx.lineTo(-4, 0); cx.lineTo(-10, 13); cx.closePath();
+    cx.fillStyle = up ? "#ffd84d" : "#ffd84d99"; cx.fill(); cx.lineWidth = 3; cx.strokeStyle = "#000"; cx.stroke(); cx.restore();
+    cx.font = "800 13px system-ui,sans-serif"; cx.fillStyle = "#fff"; cx.strokeStyle = "#000"; cx.lineWidth = 4;
+    cx.strokeText(t("sunOff"), x - ux*30, y - uy*30); cx.fillText(t("sunOff"), x - ux*30, y - uy*30);
+    return;
+  }
+  const x = p[0], y = p[1];
+  cx.lineWidth = 9; cx.strokeStyle = "#000"; cx.beginPath(); cx.arc(x, y, 18, 0, 2*Math.PI); cx.stroke();      // contorno scuro: si vede anche sul cielo bianco
+  cx.beginPath(); cx.arc(x, y, 18, 0, 2*Math.PI); cx.fillStyle = up ? "#ffd84d" : "#ffd84d66"; cx.fill();
+  cx.lineWidth = 4; cx.strokeStyle = "#fff"; cx.stroke();
+  cx.lineWidth = 3; cx.strokeStyle = "#000"; cx.beginPath(); cx.arc(x, y, 22, 0, 2*Math.PI); cx.stroke();        // secondo anello scuro all'esterno
+  cx.beginPath(); for(let q = 0; q < 4; q++){ const c = Math.cos(q*Math.PI/2), s2 = Math.sin(q*Math.PI/2); cx.moveTo(x + c*26, y + s2*26); cx.lineTo(x + c*38, y + s2*38); }
+  cx.lineWidth = 6; cx.strokeStyle = "#000"; cx.stroke(); cx.lineWidth = 3; cx.strokeStyle = "#ffd84d"; cx.stroke();                              // tacche in croce
+  cx.fillStyle = "#fff"; cx.strokeStyle = "#000"; cx.lineWidth = 4; cx.font = "800 14px system-ui,sans-serif";
+  cx.strokeText(t("sunNow"), x, y + 54); cx.fillText(t("sunNow"), x, y + 54);
 }
 function drawMini(camAz, camEl, hf, vf, sun){
   if(mini.hidden || MW <= 0) return;
@@ -1268,7 +1516,11 @@ function draw(){
   const sun = HAVE_LOC ? sunPos(now, readLoc() ? readLoc().lat : LAT, readLoc() ? readLoc().lon : 0) : {az: 0, el: -90};
   cx.lineJoin = "round"; cx.textAlign = "center"; cx.textBaseline = "middle";
   CAM.az = camAz; CAM.el = camEl;
-  if(VIEW !== "lines" && SIMW && RZ && !simDirty) drawReal(A, fl);   // solargrafia realistica sotto le linee
+  if(VIEW !== "lines" && SIMW && RZ && !simDirty){   // solargrafia realistica sotto le linee: GPU, o CPU se WebGL2 manca
+    if(GLS === null) glInit();
+    if(GLS && GLS.ok){ if(!lutBusy) glDraw(A, fl); else GLS.c.hidden = true; }
+    else if(GLS === false) drawReal(A, fl);
+  } else if(GLS && !GLS.c.hidden) GLS.c.hidden = true;
   // linee di altezza
   cx.font = "600 13px system-ui,sans-serif"; cx.setLineDash([6,8]); cx.lineWidth = 1; cx.strokeStyle = "#ffffff77"; cx.fillStyle = "#fff";
   for(const el of [-30,-15,15,30,45,60,75]){
@@ -1281,7 +1533,7 @@ function draw(){
     for(let pass = 0; pass < 2; pass++) for(let i = 0; i < n; i++){        // prima le curve semplici, poi solstizi/equinozi/estremi sopra
       const a = ARCS[i], key = !!a.kind || i === 0 || i === n - 1;
       if((pass === 1) !== key || !selected(a, i, n)) continue;
-      const s = styleFor(a, i, n); cx.strokeStyle = s[0]; cx.lineWidth = s[1]; arcPath(a, A, fl);
+      const s = styleFor(a, i, n); cx.strokeStyle = s[0]; cx.lineWidth = s[1]*LWM; arcPath(a, A, fl);
     }
     cx.font = "700 13px system-ui,sans-serif"; cx.lineWidth = 3; cx.strokeStyle = "#000b";
     for(let i = 0; i < n; i++){
@@ -1289,13 +1541,13 @@ function draw(){
       if(selected(a, i, n) && (key || MODE !== "all")){ cx.fillStyle = styleFor(a, i, n)[0].slice(0, 7); arcLabel(a, A, fl, dateLabel(a.t)); }
     }
   }
-  if(HAVE_LOC && ANA.length && VIEW !== "real") drawAnalemmas(A, fl);
+  if(HAVE_LOC && ANA.length) drawAnalemmas(A, fl);
   // arco di oggi (tratteggiato) e sole adesso
-  if(HAVE_LOC && TODAY){ cx.setLineDash([8,6]); cx.lineWidth = 2; cx.strokeStyle = "#ffffffdd"; arcPath(TODAY, A, fl); cx.setLineDash([]); }
+  if(HAVE_LOC && TODAY){ cx.setLineDash([8,6]); cx.lineWidth = 2*LWM; cx.strokeStyle = "#ffffffdd"; arcPath(TODAY, A, fl); cx.setLineDash([]); }
   if(HAVE_LOC) drawSun(A, P, sun);
   drawAim(P, camAz, camEl);
   // orizzonte
-  cx.setLineDash([]); cx.lineWidth = 2.5; cx.strokeStyle = "#7fd6e8"; polyline(P, 0, 360, 2, 0);
+  cx.setLineDash([]); if(HC){ cx.lineWidth = 2.5*LWM + 3; cx.strokeStyle = "#000c"; polyline(P, 0, 360, 2, 0); } cx.lineWidth = 2.5*LWM; cx.strokeStyle = "#7fd6e8"; polyline(P, 0, 360, 2, 0);
   // gradi lungo l'orizzonte: tacche ogni 5°, numeri ogni 30°, lettere ai punti cardinali
   cx.lineWidth = 1.5;
   for(let az = 0; az < 360; az += 5){
@@ -1323,9 +1575,9 @@ function warnings(){
   if(src === "none" && now - startedAt > 2500) w = t("warnNoSensor");
   else if(src === "relative") w = t("warnRel");
   else if(!HAVE_LOC) w = t("needLoc");
-  if(VIEW !== "lines" && SIM && simDirty) w = simFail ? t("simFail") + simFail : t("calc");
+  if(VIEW !== "lines" && SIM && (simDirty || lutBusy)) w = simFail ? t("simFail") + simFail : t("calc");
   $("hudWarn").textContent = w;
-  const rm = $("realMsg"); if(rm) rm.textContent = VIEW === "lines" && !SIM ? "" : (simDirty ? t("calc") : t("ready"));
+  const rm = $("realMsg"); if(rm) rm.textContent = VIEW === "lines" && !SIM ? "" : (simDirty || lutBusy ? t("calc") : t("ready"));
 }
 function diagText(){
   const v = $("vid"), la = readLoc(), A = F ? axes() : null;
@@ -1348,6 +1600,7 @@ function diagText(){
     "sole ora (NOAA): " + (s ? "az " + fm(s.az, 2) + "  alt " + fm(s.el, 2) : "-"),
     "ora UTC: " + new Date().toISOString(),
     "simulatore: " + (SIM ? (simDirty ? "in calcolo/non pronto" : "pronto") + (SIMW && SIMW.ARX ? ", forma " + SIMW.ARX.S + ", foro az " + fm(SIMW.ARX.V.hd) + " incl " + fm(SIMW.ARX.V.tl, 0) : "") + (simFail ? " (" + simFail + ")" : "") : "non caricato") + ", vista: " + VIEW,
+    "solargrafia: " + (GLS ? "GPU (WebGL2), tabella " + (GLS.ok ? GLS.na + "x" + GLS.ne : "non pronta") : GLS === false ? "CPU (WebGL2 non disponibile" + (GL_ERR ? ": " + GL_ERR : "") + ")" : "non avviata") + ", qualità x" + QUAL,
     "lingua: " + LANG
   ].join("\n");
 }

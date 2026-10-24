@@ -35,14 +35,18 @@ label{display:block;margin:10px 0 4px;color:var(--mut);font-size:14px}
 #vid{filter:brightness(var(--vb,1)) contrast(var(--vc,1))}
 #gl{position:absolute;inset:0;width:100%;height:100%;pointer-events:none}
 #cv{position:absolute;inset:0;width:100%;height:100%}
-#hud{position:absolute;left:0;right:0;top:0;padding:max(8px,env(safe-area-inset-top)) 12px 8px;background:linear-gradient(#000a,#0000);text-shadow:0 1px 3px #000;pointer-events:none}
+/* FIX 2a: HUD con shadow potenziato per migliore contrasto su video luminoso */
+#hud{position:absolute;left:0;right:0;top:0;padding:max(8px,env(safe-area-inset-top)) 12px 8px;background:linear-gradient(#000a,#0000);text-shadow:0 2px 4px #000,0 0 2px #000;pointer-events:none}
 #hud b{font-size:22px;font-variant-numeric:tabular-nums}
 #hudSun{font-size:13px;color:#ffe08a}
 #hudTime{font-size:13px;color:#cfe8ff}
 #hud .w{color:var(--ac);font-size:13px}
-#bar{position:absolute;left:0;right:0;bottom:0;display:flex;gap:6px;padding:8px 8px max(10px,env(safe-area-inset-bottom));background:linear-gradient(#0000,#000b)}
-#bar button{flex:1;padding:8px 2px;font-size:13px;background:#0f1a24cc}
-#mini{position:absolute;left:8px;bottom:calc(64px + env(safe-area-inset-bottom,0px));width:min(calc(100% - 16px),340px);height:96px;border:1px solid var(--bd);border-radius:8px;background:#0f1a24cc}
+#bar{position:absolute;left:0;right:0;bottom:0;display:flex;gap:6px;padding:8px 8px max(10px,env(safe-area-inset-bottom));background:linear-gradient(#0000,#000b);flex-wrap:wrap}
+#bar button{flex:1;padding:8px 2px;font-size:13px;background:#0f1a24cc;min-width:70px}
+/* FIX 1: Su schermi < 400px, stacka i pulsanti su 2 colonne */
+@media(max-width:399px){#bar button{flex:0 1 calc(50% - 3px);font-size:12px;padding:6px 2px}}
+/* FIX 4: Mini-mappa più visibile — border potenziato e cursor pointer */
+#mini{position:absolute;left:8px;bottom:calc(64px + env(safe-area-inset-bottom,0px));width:min(calc(100% - 16px),340px);height:96px;border:2px solid var(--ac);border-radius:8px;background:#0f1a24cc;cursor:pointer;box-shadow:0 2px 6px #0008}
 #panel{position:absolute;left:0;right:0;bottom:calc(64px + env(safe-area-inset-bottom,0px));margin:0 8px;padding:6px 14px 12px;background:#0f1a24f0;border:1px solid var(--bd);border-radius:12px;max-height:65%;overflow:auto}
 #diag{position:absolute;left:8px;right:8px;top:100px;bottom:70px;margin:0;padding:10px;background:#000d;color:#cfe;border-radius:10px;overflow:auto;font:12px/1.4 ui-monospace,Menlo,Consolas,monospace;white-space:pre-wrap}
 #diagBtns{position:absolute;right:14px;top:108px}
@@ -130,7 +134,8 @@ label{display:block;margin:10px 0 4px;color:var(--mut);font-size:14px}
     <p class="note" data-i="northHelp">Dalla bussola del telefono al nord geografico: in Salento la declinazione è di circa +4°.</p>
     <label for="anaH" data-i="anaLbl">Analemmi: ore da mostrare (es. 6, 9, 12.5)</label>
     <input id="anaH" type="text" inputmode="decimal">
-    <p class="note" id="tzInfo" style="color:var(--fg)"></p>
+    <!-- FIX 3: tzInfo in giallo per migliore leggibilità, font 14px -->
+    <p class="note" id="tzInfo" style="color:var(--ac);font-size:14px;font-weight:500"></p>
     <details><summary data-i="tzAdv">Orario: impostazioni avanzate</summary>
       <label for="anaTz" data-i="tzLbl">Ora degli analemmi riferita a</label>
       <select id="anaTz">
@@ -887,6 +892,17 @@ $("d0").oninput = $("d1").oninput = () => { $("preset").value = "c"; sv("ar_pres
 /* ---------- Curve del sole del periodo ---------- */
 let ARCS = [], TODAY = null, LAT = 40, HAVE_LOC = false;
 let ANA = [], ANA_HOURS = [];   // analemmi: dichiarati qui, prima di ogni uso
+
+/* FIX 5: Cache per sunPos() per eliminare lag quando cambi orologio/UTC
+   Memoizza i risultati di sunPos(ms, lat, lon) per riusarli */
+const sunPosCache = new Map();
+function sunPosCached(ms, lat, lon){
+  const key = `${ms}|${lat}|${lon}`;
+  if(!sunPosCache.has(key)){
+    sunPosCache.set(key, sunPos(ms, lat, lon));
+  }
+  return sunPosCache.get(key);
+}
 let VIEW = ld("ar_view", "lines"), RALPHA = (+ld("ar_ralpha", "60") || 60)/100;   // vista: lines | both | real
 let SIM = null, SIMW = null, RZ = null, simDirty = true, simOpen = false, simQ = [], simFail = "", CAM = {az: 0, el: 0};
 let rcv = null, rcx = null, rim = null;
@@ -983,6 +999,8 @@ function dayArc(dayMs, lat, lon){   // un giorno: dal mezzogiorno solare -12 h a
   return {t: dayMs, n, az, el, v, top, decl: solar(noon).decl*deg, kind: ""};
 }
 function buildArcs(la){
+  /* FIX 8: Pulisci cache sunPos quando cambi luogo/periodo — dati nuovi */
+  sunPosCache.clear();
   ARCS = []; TODAY = null; HAVE_LOC = !!la;
   if(!la) return;
   LAT = la.lat;
@@ -1252,7 +1270,11 @@ function parseHours(s){
 function buildAnalemmas(la){
   ANA = []; if(!la || !$("d0").value) return;
   const a = Date.parse($("d0").value + "T00:00:00Z"), zone = ANA_TZ === "clock" ? zoneName() : null;
-  if(ANA_TZ === "clock" && !zone) return;                  // fuso non ancora noto: meglio nessuna curva che una curva sbagliata
+  /* FIX 9: Se fuso offline in modalità clock, mostra warning anziché silenzio */
+  if(ANA_TZ === "clock" && !zone){
+    try{ $("tzNote").textContent = "⚠️ Ore non disponibili — fuso offline. Vai online per ricevere il valore esatto."; }catch(e){}
+    return;
+  }
   ANA_HOURS.forEach((h, k) => {
     const n = 366, v = new Float32Array(3*n), brk = new Uint8Array(n), lbl = []; let po = null;
     for(let i = 0; i < n; i++){
@@ -1260,7 +1282,8 @@ function buildAnalemmas(la){
       // clock: h è l'ora dell'orologio nel fuso del luogo, con l'ora legale di quel giorno. utc: h è già UTC. sunPos aggiunge da sé l'equazione del tempo
       let ms; if(!zone) ms = day + h*3600000;
       else { ms = wallToUtc(zone, dt.getUTCFullYear(), dt.getUTCMonth(), dt.getUTCDate(), h); const o = offMin(zone, ms); if(i && o !== po) brk[i] = 1; po = o; }   // brk: cambio d'ora legale, la curva si interrompe
-      const s = sunPos(ms, la.lat, la.lon), az = s.az*rad, e = s.el*rad;
+      /* FIX 5b: Usa cache sunPosCached() invece di sunPos() — elimina ricacalcoli identici */
+      const s = sunPosCached(ms, la.lat, la.lon), az = s.az*rad, e = s.el*rad;
       v[3*i] = Math.cos(e)*Math.sin(az); v[3*i+1] = Math.cos(e)*Math.cos(az); v[3*i+2] = Math.sin(e);
       if(dt.getUTCDate() === 21) lbl.push({i, text: dateLabel(day)});
     }
@@ -1308,7 +1331,9 @@ function drawAnalemmas(A, fl){
     }
   }
   // l'ora di ogni analemma (nel riferimento scelto), in un'etichetta sul punto più alto visibile sullo schermo
+  /* FIX 6: Calcola etichette intelligenti — salta se troppo vicine (< 45px) per evitare sovrapposizioni */
   cx.font = "800 14px system-ui,sans-serif"; cx.textAlign = "center";
+  const drawnLabels = [];  // traccia posizioni già disegnate
   for(const an of ANA){
     let best = -1, bz = -2, bp = null;
     for(let i = 0; i < an.n; i += 2){
@@ -1317,10 +1342,14 @@ function drawAnalemmas(A, fl){
       best = i; bz = z; bp = p;
     }
     if(best < 0) continue;
+    // Controlla se troppo vicino a un'etichetta già disegnata
     const txt = fmtHour(an.h) + (ANA_TZ === "utc" ? " " + t("tzShortUtc") : ""), w = cx.measureText(txt).width + 14, x = bp[0], y = bp[1] - 30;
+    const tooClose = drawnLabels.some(prev => Math.hypot(prev.x - x, prev.y - y) < 45);
+    if(tooClose) continue;  // Salta questa etichetta, è troppo vicina
     cx.beginPath(); cx.arc(bp[0], bp[1], 4, 0, 2*Math.PI); cx.fillStyle = an.col; cx.fill(); cx.lineWidth = 1.5; cx.strokeStyle = "#000"; cx.stroke();
     cx.beginPath(); cx.roundRect(x - w/2, y - 11, w, 22, 11); cx.fillStyle = "#000c"; cx.fill(); cx.lineWidth = 2; cx.strokeStyle = an.col; cx.stroke();
     cx.fillStyle = "#fff"; cx.fillText(txt, x, y + 1);
+    drawnLabels.push({x, y});  // Registra questa etichetta per il prossimo controllo
   }
 }
 
@@ -1720,7 +1749,8 @@ function loop(){
   if(now - lastRateT > 1000){ evRate = evCount; evCount = 0; lastRateT = now; }
   if(now - lastEvT < 1000) tries = 0;                                                  // i dati arrivano: tutto a posto
   else if(now - lastBind > Math.min(2500, 700 + tries*300)){ tries++; bindSensors(); }   // nessun dato (o dati fermi): riaggancia, senza limite
-  if(!simOpen) draw();
+  /* FIX 7: Non disegna se simulatore o panel/diagnostica sono aperti (risparmia batteria) */
+  if(!simOpen && $("panel").hidden && $("diag").hidden) draw();
   warnings();
   if(!$("diag").hidden && now - lastDiagT > 400){ $("diag").textContent = diagText(); lastDiagT = now; }
   raf = requestAnimationFrame(loop);

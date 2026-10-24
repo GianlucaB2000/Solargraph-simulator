@@ -111,6 +111,13 @@ label{display:block;margin:10px 0 4px;color:var(--mut);font-size:14px}
     <label for="north" data-i="north">Correzione del nord (°, positiva verso est)</label>
     <input id="north" type="number" step="0.1" inputmode="decimal">
     <p class="note" data-i="northHelp">Dalla bussola del telefono al nord geografico: in Salento la declinazione è di circa +4°. La taratura sul sole arriva nel passo 6.</p>
+    <label for="anaH" data-i="anaLbl">Analemmi: ore solari medie (es. 6, 9, 12.5)</label>
+    <input id="anaH" type="text" inputmode="decimal">
+    <div class="row">
+      <button id="anaDef" type="button">6–18</button>
+      <button id="anaNone" type="button">Nessuno</button>
+    </div>
+    <p class="note" data-i="anaHelp">Una curva per ogni ora scelta, con un'etichetta per mese (giorno 21). Valori tra 0 e 24, separati da virgole.</p>
   </div>
 
   <pre id="diag" hidden></pre>
@@ -126,7 +133,7 @@ label{display:block;margin:10px 0 4px;color:var(--mut);font-size:14px}
 
 <script>
 "use strict";
-const VERSION = "AR v2 (passo 2)";
+const VERSION = "AR v3 (passo 3)";
 const $ = id => document.getElementById(id), rad = Math.PI/180, deg = 180/Math.PI;
 
 /* ---------- Testi (aggiungere una lingua = aggiungere un blocco qui) ---------- */
@@ -298,6 +305,7 @@ function buildArcs(la){
     const j = Math.abs(ARCS[i].decl) < Math.abs(ARCS[i+1].decl) ? i : i + 1; if(!ARCS[j].kind) ARCS[j].kind = "eq";
   }
   const d = new Date(); TODAY = dayArc(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate()), la.lat, la.lon);
+  buildAnalemmas(la);
 }
 function selected(a, i, n){
   if(a.kind || i === 0 || i === n - 1 || MODE === "all") return true;
@@ -332,9 +340,13 @@ function feed(alpha, beta, gamma, compass){
   const a = alpha*rad, b = beta*rad, g = gamma*rad;
   const ca = Math.cos(a), sa = Math.sin(a), cb = Math.cos(b), sb = Math.sin(b), cg = Math.cos(g), sg = Math.sin(g);
   // Colonne della matrice di rotazione W3C: assi x (destra), y (alto), z (uscente dallo schermo) nel sistema Est-Nord-Alto
-  let X = [ca*cg - sa*sb*sg, cg*sa + ca*sb*sg, -cb*sg];
-  let Y = [-cb*sa, ca*cb, sb];
-  let Z = [ca*sg + cg*sa*sb, sa*sg - ca*cg*sb, cb*cg];
+  const X = [ca*cg - sa*sb*sg, cg*sa + ca*sb*sg, -cb*sg];
+  const Y = [-cb*sa, ca*cb, sb];
+  const Z = [ca*sg + cg*sa*sb, sa*sg - ca*cg*sb, cb*cg];
+  feedMat(X, Y, Z, compass);
+}
+/* Riceve gli assi del telefono (Est-Nord-Alto) e li filtra. Si filtrano i vettori e non gli angoli. */
+function feedMat(X, Y, Z, compass){
   if(compass != null){          // iPhone: assetto relativo + bussola, scarto lentamente filtrato
     const f = [-Z[0], -Z[1], -Z[2]];
     const ref = Math.abs(f[2]) < 0.7 ? Math.atan2(f[0], f[1]) : Math.atan2(Y[0], Y[1]); // camera se quasi orizzontale, altrimenti lato alto
@@ -344,7 +356,7 @@ function feed(alpha, beta, gamma, compass){
   if(src === "ios" && iosOff !== null){ const d = iosOff*rad; X = rotZ(X,d); Y = rotZ(Y,d); Z = rotZ(Z,d); }
   if(!F){ F = {X, Y, Z}; return; }
   const ang = Math.acos(Math.max(-1, Math.min(1, dot(F.Z, Z))));     // quanto si muove il telefono
-  const k = Math.min(1, 0.07 + ang*12);                               // fermo: molto filtrato; in movimento: reattivo
+  const k = Math.min(1, 0.04 + ang*8);                               // fermo: molto filtrato; in movimento: reattivo
   const mix = (p, q) => [p[0]+(q[0]-p[0])*k, p[1]+(q[1]-p[1])*k, p[2]+(q[2]-p[2])*k];
   let nz = norm(mix(F.Z, Z)), nx = mix(F.X, X);
   const d = dot(nx, nz); nx = norm([nx[0]-nz[0]*d, nx[1]-nz[1]*d, nx[2]-nz[2]*d]);  // riporta gli assi perpendicolari
@@ -362,14 +374,34 @@ function onRel(e){
   feed(e.alpha, e.beta, e.gamma, (h != null) ? h : null);
 }
 /* Registrazione dei sensori; si ripete se non arrivano dati (a volte Chrome non li avvia alla prima apertura) */
+/* Android/Chrome: quaternione fuso dal sensore di orientamento assoluto (Generic Sensor API) */
+let absSensor = null;
+function startQuatSensor(){
+  if(typeof AbsoluteOrientationSensor === "undefined") return false;
+  try{
+    const s = new AbsoluteOrientationSensor({frequency: 60, referenceFrame: "device"});
+    s.addEventListener("reading", () => {
+      const [x, y, z, w] = s.quaternion;   // rotazione dispositivo -> Est-Nord-Alto
+      const X = [1-2*(y*y+z*z), 2*(x*y+z*w), 2*(x*z-y*w)];
+      const Y = [2*(x*y-z*w), 1-2*(x*x+z*z), 2*(y*z+x*w)];
+      const Z = [2*(x*z+y*w), 2*(y*z-x*w), 1-2*(x*x+y*y)];
+      src = "absolute"; evCount++; lastHead = null;
+      feedMat(X, Y, Z, null);
+    });
+    s.addEventListener("error", () => { try{ s.stop(); }catch(e){} absSensor = null; });   // il ciclo di riserva riprova
+    s.start(); absSensor = s; return true;
+  }catch(e){ return false; }
+}
 function unbindSensors(){
+  if(absSensor){ try{ absSensor.stop(); }catch(e){} absSensor = null; }
   window.removeEventListener("deviceorientationabsolute", onAbs, true);
   window.removeEventListener("deviceorientation", onRel, true); bound = false;
 }
 function bindSensors(){
   unbindSensors();
+  if(startQuatSensor()){ bound = true; lastBind = performance.now(); return; }   // Android: quaternione
   if("ondeviceorientationabsolute" in window) window.addEventListener("deviceorientationabsolute", onAbs, true);
-  window.addEventListener("deviceorientation", onRel, true);
+  window.addEventListener("deviceorientation", onRel, true);                     // iPhone e riserva
   bound = true; lastBind = performance.now();
 }
 
@@ -423,6 +455,12 @@ $("fov").value = FOV; $("fovVal").textContent = fm(FOV) + "°"; $("north").value
 $("showSun").checked = SHOW; $("mode").value = MODE;
 $("fov").oninput = e => { FOV = +e.target.value; $("fovVal").textContent = fm(FOV) + "°"; sv("ar_fov", FOV); };
 $("north").oninput = e => { const v = num(e.target.value); NORTH = isFinite(v) ? v : 0; sv("ar_north", NORTH); };
+ANA_HOURS = parseHours(ld("ar_ana", "6,7,8,9,10,11,12,13,14,15,16,17,18"));
+$("anaH").value = ANA_HOURS.join(", ");
+const anaApply = () => { ANA_HOURS = parseHours($("anaH").value); sv("ar_ana", ANA_HOURS.join(",")); $("anaH").value = ANA_HOURS.join(", "); buildAnalemmas(readLoc()); };
+$("anaH").onchange = anaApply;
+$("anaDef").onclick = () => { $("anaH").value = "6,7,8,9,10,11,12,13,14,15,16,17,18"; anaApply(); };
+$("anaNone").onclick = () => { $("anaH").value = ""; anaApply(); };
 $("showSun").onchange = e => { SHOW = e.target.checked; sv("ar_show", SHOW ? "1" : "0"); };
 $("mode").onchange = e => { MODE = e.target.value; sv("ar_mode", MODE); };
 $("btnSet").onclick = () => { const o = $("panel").hidden; $("panel").hidden = !o; if(o){ $("diag").hidden = true; $("diagBtns").hidden = true; } };
@@ -433,6 +471,47 @@ $("btnCopy").onclick = async () => {
   catch(e){ const r = document.createRange(); r.selectNodeContents($("diag")); const s = getSelection(); s.removeAllRanges(); s.addRange(r); }
   setTimeout(() => { $("btnCopy").textContent = t("copy"); }, 1500);
 };
+
+/* ---------- Analemmi (ora solare media, come nel simulatore) ---------- */
+let ANA = [], ANA_HOURS = [];
+const ANA_COLS = ["#ff6fd8", "#6fb4ff", "#7dff9a", "#ffa86f", "#c79bff", "#ffe36f", "#6ff5e6"];
+function parseHours(s){
+  return [...new Set(String(s).split(/[,;\s]+/).map(num).filter(h => isFinite(h) && h >= 0 && h <= 24))].sort((a, b) => a - b);
+}
+function buildAnalemmas(la){
+  ANA = []; if(!la || !$("d0").value) return;
+  const a = Date.parse($("d0").value + "T00:00:00Z");
+  ANA_HOURS.forEach((h, k) => {
+    const n = 366, v = new Float32Array(3*n), lbl = [];
+    for(let i = 0; i < n; i++){
+      const day = a + i*864e5;
+      // ora solare media h: UTC = h*60 - 4*lon (minuti); sunPos aggiunge l'equazione del tempo
+      const s = sunPos(day + (h*60 - 4*la.lon)*60000, la.lat, la.lon), az = s.az*rad, e = s.el*rad;
+      v[3*i] = Math.cos(e)*Math.sin(az); v[3*i+1] = Math.cos(e)*Math.cos(az); v[3*i+2] = Math.sin(e);
+      if(new Date(day).getUTCDate() === 21) lbl.push({i, text: dateLabel(day)});
+    }
+    ANA.push({v, n, lbl, col: ANA_COLS[k % ANA_COLS.length], h});
+  });
+}
+/* Proietta il punto i di un analemma; null se dietro la fotocamera */
+function anaPoint(an, i, A, fl){
+  const x = an.v[3*i], y = an.v[3*i+1], z = an.v[3*i+2], zc = x*A.f[0] + y*A.f[1] + z*A.f[2];
+  if(zc < 0.05) return null;
+  return [W/2 + (x*A.r[0] + y*A.r[1] + z*A.r[2])/zc*fl, H/2 - (x*A.u[0] + y*A.u[1] + z*A.u[2])/zc*fl];
+}
+function drawAnalemmas(A, fl){
+  if(!ANA.length) return;
+  cx.setLineDash([]);
+  for(const an of ANA){ cx.strokeStyle = an.col; cx.lineWidth = 2; arcPath(an, A, fl); }
+  cx.font = "700 12px system-ui,sans-serif"; cx.lineWidth = 3; cx.strokeStyle = "#000b";
+  for(const an of ANA){
+    cx.fillStyle = an.col;
+    for(const L of an.lbl){
+      const p = anaPoint(an, L.i, A, fl); if(!p) continue;
+      cx.strokeText(L.text, p[0], p[1] - 8); cx.fillText(L.text, p[0], p[1] - 8);
+    }
+  }
+}
 
 /* ---------- Disegno ---------- */
 const cv = $("cv"), cx = cv.getContext("2d"), mini = $("mini"), mx = mini.getContext("2d");
@@ -548,6 +627,7 @@ function draw(){
       if(selected(a, i, n) && (key || MODE !== "all")){ cx.fillStyle = styleFor(a, i, n)[0].slice(0, 7); arcLabel(a, A, fl, dateLabel(a.t)); }
     }
   }
+  if(HAVE_LOC && ANA.length) drawAnalemmas(A, fl);
   // arco di oggi (tratteggiato) e sole adesso
   if(HAVE_LOC && TODAY){ cx.setLineDash([8,6]); cx.lineWidth = 2; cx.strokeStyle = "#ffffffdd"; arcPath(TODAY, A, fl); cx.setLineDash([]); }
   if(HAVE_LOC) drawSun(A, P, sun);
@@ -608,7 +688,7 @@ function loop(){
   if(!running) return;
   const now = performance.now();
   if(now - lastRateT > 1000){ evRate = evCount; evCount = 0; lastRateT = now; }
-  if(src === "none" && now - lastBind > 1500 && tries < 3){ tries++; bindSensors(); }   // rimedio: riprova a registrare i sensori
+  if(src === "none" && now - lastBind > Math.min(2000, 500 + tries*250)){ tries++; bindSensors(); }   // riprova con attesa crescente, senza limite
   draw(); warnings();
   if(!$("diag").hidden && now - lastDiagT > 400){ $("diag").textContent = diagText(); lastDiagT = now; }
   raf = requestAnimationFrame(loop);

@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Solargrafia AR</title>
-<!-- Solargrafia AR - passo 3b (versione di prova). Licenza MIT. -->
+<!-- Solargrafia AR - passo 4 (versione di prova). Licenza MIT. -->
 <style>
 :root{--bg:#0f1a24;--fg:#e8edf2;--mut:#93a3b3;--ac:#ffc83d;--ln:#7fd6e8;--bd:#2a3a4a}
 *{box-sizing:border-box}
@@ -38,11 +38,22 @@ label{display:block;margin:10px 0 4px;color:var(--mut);font-size:14px}
 #hudSun{font-size:13px;color:#ffe08a}
 #hud .w{color:var(--ac);font-size:13px}
 #bar{position:absolute;left:0;right:0;bottom:0;display:flex;gap:6px;padding:8px 8px max(10px,env(safe-area-inset-bottom));background:linear-gradient(#0000,#000b)}
-#bar button{flex:1;padding:8px 4px;font-size:14px;background:#0f1a24cc}
+#bar button{flex:1;padding:8px 2px;font-size:13px;background:#0f1a24cc}
 #mini{position:absolute;left:8px;bottom:calc(64px + env(safe-area-inset-bottom,0px));width:min(calc(100% - 16px),340px);height:96px;border:1px solid var(--bd);border-radius:8px;background:#0f1a24cc}
 #panel{position:absolute;left:0;right:0;bottom:calc(64px + env(safe-area-inset-bottom,0px));margin:0 8px;padding:6px 14px 12px;background:#0f1a24f0;border:1px solid var(--bd);border-radius:12px;max-height:65%;overflow:auto}
 #diag{position:absolute;left:8px;right:8px;top:100px;bottom:70px;margin:0;padding:10px;background:#000d;color:#cfe;border-radius:10px;overflow:auto;font:12px/1.4 ui-monospace,Menlo,Consolas,monospace;white-space:pre-wrap}
 #diagBtns{position:absolute;right:14px;top:108px}
+
+.x{min-height:36px;min-width:42px;padding:4px 10px;font-size:18px;line-height:1;background:#0f1a24cc}
+.ph{position:sticky;top:0;z-index:2;display:flex;align-items:center;justify-content:space-between;margin:-6px -14px 4px;padding:6px 8px 6px 14px;background:#0f1a24;border-bottom:1px solid var(--bd);border-radius:12px 12px 0 0}
+#miniX{position:absolute;left:calc(8px + min(calc(100% - 16px),340px) - 34px);bottom:calc(64px + env(safe-area-inset-bottom,0px) + 62px);min-height:30px;min-width:32px;padding:0;font-size:16px;line-height:1;background:#0f1a24cc;border-radius:8px}
+#hudAim{font-size:13px;color:#8fe3ff}
+#diagBtns{display:flex;gap:6px}
+#sim{position:fixed;inset:0;z-index:50;background:#15151a;display:flex;flex-direction:column}
+#sim.off{visibility:hidden;pointer-events:none;z-index:-1}
+#simHead{display:flex;align-items:center;justify-content:space-between;padding:max(8px,env(safe-area-inset-top)) 10px 8px 14px;border-bottom:1px solid var(--bd);background:#0f1a24}
+#simBody{flex:1;min-height:0}
+#simFrame{display:block;width:100%;height:100%;border:0;background:#15151a}
 </style>
 </head>
 <body>
@@ -55,7 +66,7 @@ label{display:block;margin:10px 0 4px;color:var(--mut);font-size:14px}
   </select>
   <h1 data-i="title">Solargrafia AR</h1>
   <p class="sub" data-i="sub">Punta il telefono: vedi il percorso del sole nel periodo scelto sopra la fotocamera.</p>
-  <p class="note" data-i="beta">Versione di prova (passo 3b). Su iPhone la bussola è sperimentale.</p>
+  <p class="note" data-i="beta">Versione di prova (passo 4). Su iPhone la bussola è sperimentale.</p>
 
   <div class="box">
     <h2 data-i="loc">Posizione</h2>
@@ -91,11 +102,13 @@ label{display:block;margin:10px 0 4px;color:var(--mut);font-size:14px}
 <section id="ar" hidden>
   <video id="vid" playsinline muted autoplay></video>
   <canvas id="cv"></canvas>
-  <div id="hud"><b id="hudMain">--</b><div id="hudSun"></div><div class="w" id="hudWarn"></div></div>
+  <div id="hud"><b id="hudMain">--</b><div id="hudSun"></div><div id="hudAim"></div><div class="w" id="hudWarn"></div></div>
 
   <canvas id="mini"></canvas>
+  <button id="miniX" type="button" data-close="mini" aria-label="Chiudi">✕</button>
 
   <div id="panel" hidden>
+    <div class="ph"><b data-i="settings">Regolazioni</b><button type="button" class="x" data-close="panel" aria-label="Chiudi">✕</button></div>
     <label style="display:flex;align-items:center;color:var(--fg)"><input id="showSun" type="checkbox"><span data-i="sunShow">Mostra le curve del sole</span></label>
     <label for="mode" data-i="mode">Quante curve</label>
     <select id="mode">
@@ -107,39 +120,549 @@ label{display:block;margin:10px 0 4px;color:var(--mut);font-size:14px}
     <p class="note" data-i="legend">Giallo: solstizi. Arancio: equinozi. Bianco: primo e ultimo giorno. Tratteggiata: oggi. Cerchio: il sole adesso.</p>
     <label for="fov"><span data-i="fov">Campo visivo della fotocamera, lato lungo (°)</span>: <b id="fovVal"></b></label>
     <input id="fov" type="range" min="40" max="110" step="0.5">
-    <p class="note" data-i="fovHelp">Se l'orizzonte non coincide con quello vero quando inclini il telefono, regola questo valore. La taratura precisa arriva nel passo 5.</p>
+    <p class="note" data-i="fovHelp">Se l'orizzonte non coincide con quello vero quando inclini il telefono, regola questo valore.</p>
     <label for="north" data-i="north">Correzione del nord (°, positiva verso est)</label>
     <input id="north" type="number" step="0.1" inputmode="decimal">
-    <p class="note" data-i="northHelp">Dalla bussola del telefono al nord geografico: in Salento la declinazione è di circa +4°. La taratura sul sole arriva nel passo 6.</p>
+    <p class="note" data-i="northHelp">Dalla bussola del telefono al nord geografico: in Salento la declinazione è di circa +4°.</p>
     <label for="anaH" data-i="anaLbl">Analemmi: ore solari medie (es. 6, 9, 12.5)</label>
     <input id="anaH" type="text" inputmode="decimal">
     <div class="row">
       <button id="anaDef" type="button">6–18</button>
-      <button id="anaNone" type="button">Nessuno</button>
+      <button id="anaNone" type="button" data-i="anaNone">Nessuno</button>
     </div>
     <p class="note" data-i="anaHelp">Una curva per ogni ora scelta, con un'etichetta per mese (giorno 21). Valori tra 0 e 24, separati da virgole.</p>
+    <h3 style="margin:16px 0 0;font-size:16px" data-i="realTitle">Solargrafia realistica</h3>
+    <label for="view" data-i="viewLbl">Cosa mostrare</label>
+    <select id="view">
+      <option value="lines" data-i="vLines">Solo linee</option>
+      <option value="both" data-i="vBoth">Linee + solargrafia realistica</option>
+      <option value="real" data-i="vReal">Solo solargrafia realistica</option>
+    </select>
+    <label for="ralpha"><span data-i="alphaLbl">Opacità della solargrafia</span>: <b id="ralphaVal"></b></label>
+    <input id="ralpha" type="range" min="10" max="95" step="5">
+    <label for="holeAz" data-i="holeLbl">Direzione del foro (°: 0 nord, 90 est, 180 sud, 270 ovest)</label>
+    <input id="holeAz" type="number" step="1" inputmode="decimal">
+    <div class="row" style="margin-top:8px">
+      <button id="aimHere" type="button" data-i="aimHere">Usa la direzione del telefono</button>
+      <button id="openSim" type="button" data-i="openSim">Forma, misure, foro…</button>
+    </div>
+    <p class="note" id="realMsg"></p>
   </div>
 
   <pre id="diag" hidden></pre>
-  <div id="diagBtns" hidden><button id="btnCopy" type="button" data-i="copy">Copia</button></div>
+  <div id="diagBtns" hidden><button id="btnCopy" type="button" data-i="copy">Copia</button><button type="button" class="x" data-close="diag" aria-label="Chiudi">✕</button></div>
 
   <div id="bar">
     <button id="btnSet" type="button" data-i="settings">Regolazioni</button>
+    <button id="btnSim" type="button" data-i="camera">Camera</button>
     <button id="btnMap" type="button" data-i="map">Mappa</button>
     <button id="btnDiag" type="button" data-i="diag">Diagnostica</button>
     <button id="btnExit" type="button" data-i="exit">Esci</button>
   </div>
 </section>
 
+<div id="sim" class="off">
+  <div id="simHead"><b data-i="simTitle">Camera e simulatore</b><button type="button" class="x" data-close="sim" aria-label="Chiudi">✕</button></div>
+  <div id="simBody"></div>
+</div>
+
+<!-- Simulatore solargrafia v27 incorporato (con tre ganci per l'AR); si carica solo quando serve -->
+<script type="text/plain" id="simSrc"><!DOCTYPE html><html lang="it"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"><title>Simulatore solargrafia v27</title>
+<style>
+:root{--bg:#f6f5f2;--fg:#1d1d1b;--mut:#6b6a66;--card:#fff;--bd:#d8d6cf;--ac:#b4510f;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+@media(prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#15151a;--fg:#ecebe6;--mut:#9a988f;--card:#1e1e25;--bd:#33333c;--ac:#f0a060}}
+:root[data-theme="dark"]{--bg:#15151a;--fg:#ecebe6;--mut:#9a988f;--card:#1e1e25;--bd:#33333c;--ac:#f0a060}
+html,body{margin:0;background:var(--bg);color:var(--fg);font:14px/1.45 system-ui,sans-serif}
+main{display:grid;grid-template-columns:minmax(250px,320px) 1fr;gap:16px;padding:14px;max-width:1300px;margin:auto}
+.card{background:var(--card);border:1px solid var(--bd);border-radius:10px;padding:12px}
+h1{font-size:18px;margin:0 0 2px}h2{font-size:14px;margin:0 0 8px}
+label{display:block;margin:7px 0 0}label span{display:flex;justify-content:space-between;color:var(--mut);font-size:12px}
+input[type=range]{width:100%;accent-color:var(--ac)}select{width:100%;padding:5px;background:var(--bg);color:var(--fg);border:1px solid var(--bd);border-radius:6px}
+.row{display:flex;flex-wrap:wrap;gap:16px;align-items:flex-start}.cv{overflow-x:auto;max-width:100%}
+canvas{display:block;border:1px solid var(--bd);background:#0b0b0f}#c1{max-width:100%;height:auto;max-height:84vh}
+main>.card:first-child{position:sticky;top:8px;max-height:calc(100vh - 16px);overflow:auto;align-self:start}button{padding:5px 9px;border:1px solid var(--bd);border-radius:6px;background:var(--bg);color:var(--fg);cursor:pointer;font:inherit}.m{color:var(--mut);font-size:12px}summary{cursor:pointer;margin-top:12px}#info{white-space:pre-line;font-size:12.5px}
+
+/* Telefono: l'anteprima viene spostata in cima dal JS (vedi sotto) e resta visibile mentre si scorrono i comandi */
+@media(max-width:800px){
+ main{display:flex;flex-direction:column;gap:10px;padding:8px}
+ main>.card:first-child{position:static;max-height:none;overflow:visible}
+ main>div{min-width:0}
+ .row{display:block}.row>.card{margin-bottom:10px}
+ #pv{align-self:stretch;order:0;position:sticky;top:0;z-index:20;padding:8px;box-shadow:0 4px 14px rgba(0,0,0,.35)}
+ #pv h2{margin:0 0 4px;font-size:13px}
+ #pv .m{font-size:11px;line-height:1.3}
+ #pv>p,#pv>.m:not(#nt):not(#rt){display:none}
+ #pv #nt:empty,#pv #rt:empty{display:none}
+ #pv #c1{max-height:34vh;width:auto;max-width:100%}
+ #pv .cv{display:flex;justify-content:center;overflow:hidden}
+}
+/* Telefono in orizzontale: comandi a sinistra, anteprima fissa a destra */
+@media(max-width:800px) and (orientation:landscape){
+ main{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);align-items:start;gap:8px}
+ #pv{grid-column:2;grid-row:1 / span 3;max-height:calc(100vh - 8px)}
+ #pv #c1{max-height:calc(100vh - 60px)}
+ main>.card:nth-child(2){grid-column:1;grid-row:1}
+ main>div{grid-column:1;grid-row:2}
+}
+</style></head><body><main>
+<div class="card"><h1>Simulatore solargrafia <span style="font-size:11px;color:var(--mut);font-weight:normal">v27</span></h1>
+<label style="margin:4px 0 8px"><span>Lingua</span><select id="lang" style="width:auto"><option value="it">Italiano</option><option value="en">English</option><option value="es">Español</option><option value="fr">Français</option><option value="de">Deutsch</option></select></label><div class="m" id="sub"></div>
+<label><span>Forma</span><select id="sh"><option value="0">Piatta (carta rettangolare)</option><option value="4">Piatta (carta rotonda)</option><option value="1">Semicilindrica</option><option value="2" selected>Cilindrica (foro sulla parete)</option><option value="3">Anamorfica (foro sull’asse)</option></select></label>
+<details open><summary><b>Periodo di esposizione</b></summary>
+<label><span>Preset</span><select id="pr"><option value="0">Anno intero (21 dic → 21 dic)</option><option value="1">6 mesi: solstizio d’inverno → d’estate</option><option value="2">6 mesi: solstizio d’estate → d’inverno</option><option value="3">Personalizzato</option></select></label>
+<label><span>Inizio esposizione</span><input type="date" id="d0"></label>
+<label><span>Fine esposizione</span><input type="date" id="d1"></label>
+<label><span>Annata (seme delle nuvole)</span><span style="display:flex;gap:6px"><input type="number" id="sd" min="0" max="99999" step="1" style="flex:1;min-width:0"><button id="nw" type="button">Nuova annata</button></span></label></details>
+<div id="c"></div>
+
+
+<button id="ng" type="button" style="margin-top:8px">Mostra il negativo</button>
+<details open><summary><b>Analemmi</b></summary><div style="display:flex;gap:6px;align-items:center;margin:6px 0 0;flex-wrap:wrap"><span class="m">Passo:</span><select id="ans" style="width:auto"><option value="60" selected>ogni ora</option><option value="30">ogni 30 minuti</option><option value="15">ogni 15 minuti</option></select><button id="ana" type="button">Tutti</button><button id="ann" type="button">Nessuno</button></div><div id="anc" style="display:flex;flex-wrap:wrap;gap:4px;margin:6px 0"></div><div id="vt" class="m" style="color:var(--ac);font-weight:600;margin:6px 0"></div><label style="display:flex;gap:6px;align-items:center"><input type="checkbox" id="adt">Scrivi la data sui punti (ogni 2 settimane)</label><p class="m">Posizione del sole alla stessa ora solare media in ogni giorno dell’esposizione (con l’equazione del tempo): disegna la «figura a 8». Non dipende da fuso orario e ora legale.</p></details>
+<details open><summary><b>Time-lapse</b></summary><div style="display:flex;gap:6px;flex-wrap:wrap;margin:6px 0;align-items:center"><button id="tp" type="button">▶ Avvia</button><button id="tr" type="button">⏺ Registra video</button><select id="tdur" style="width:auto"><option value="5">5 s</option><option value="10" selected>10 s</option><option value="20">20 s</option></select></div><input type="range" id="tsl" min="0" max="365" value="365" style="width:100%"><div class="m" id="tlb"></div><label style="display:flex;gap:6px;align-items:center;margin-top:6px"><input type="checkbox" id="tsh" checked>Mostra traccia solare</label></details><p class="m" id="st"></p></div>
+<div>
+<div class="row"><div class="card" id="pv"><h2>Solargrafia simulata (positivo)</h2><div class="m" id="nt" style="color:var(--ac)"></div><div class="m" id="rt"></div><div class="cv"><div style="position:relative;width:fit-content;max-width:100%"><canvas id="c1"></canvas><canvas id="c2" style="position:absolute;left:1px;top:1px;pointer-events:none;border:0;background:none;opacity:0;width:calc(100% - 2px);height:calc(100% - 2px)"></canvas></div></div><p class="m">Positivo simulato dopo scansione. Il foro e la larghezza del negativo si calcolano automaticamente in base alla geometria della camera, finché lasci attivi gli automatismi. Il cielo e le nuvole usano un profilo climatico indicativo automatico in base alla latitudine; non è una previsione meteorologica locale. Cambiando annata cambia la sequenza sintetica delle nuvole. Raddrizzata: alto in alto, destra a destra.</p></div>
+<div class="card"><h2>Modello 3D</h2><canvas id="c3" width="380" height="360" style="max-width:100%;height:auto;touch-action:none"></canvas><label style="margin:6px 0 0"><span>Trasparenza del modello<b id="trv" style="margin-left:4px"></b></span><input type="range" id="tr3" min="0" max="90" step="5" value="45"></label><p class="m">Trascina per ruotare. Carta bianca con il negativo sulla faccia interna (colori invertiti, capovolto e specchiato come sulla carta vera); grigio: corpo della camera; rosso: foro e asse di vista; anello: orizzonte con N, E, S, O.</p></div></div>
+<div class="card" style="margin-top:16px"><h2>Risultati</h2><div id="info"></div>
+<p class="m">Modello: direzione della luce per ogni pixel, sole ogni minuto, estinzione atmosferica, rifrazione, nuvole stagionali casuali, trasmissione della lamiera e diffrazione. Paesaggio procedurale.</p></div></div>
+</main><script>
+const EXT=[.14,.2,.3],rad=Math.PI/180,sin=Math.sin,cos=Math.cos,hyp=Math.hypot,PI=Math.PI;
+const P=[["D","Larghezza / diametro camera (mm)",20,100,.1],["f","Profondità (solo piatta, mm)",5,80,.1],["Hn","Altezza negativo (mm)",10,300,.5],["hh","Altezza foro (mm)",0,300,.5],["tw","Spessore parete della camera (mm; non è la lamiera)",0,5,.1],["rc","Raggio svasatura interna (mm, 0 = nessun limite)",0,20,.01],["off","Foro fuori asse (anamorfica, mm)",-20,20,.5],["tl","Inclinazione asse (° interi; 0 orizz., 90 zenit)",-90,90,1],["rl","Rotazione attorno all’asse (°)",-90,90,1],["hz","Altezza massima edifici all’orizzonte (°)",0,30,.5],["Wn","Larghezza negativo avvolto (mm)",40,320,1],["bg","Luminosità di cielo e paesaggio (il sole non cambia)",.2,1,.05],["lat","Latitudine (°, positiva a nord, negativa a sud)",-90,90,.1],["ex","Esposizione della carta (1 = normale)",.3,2.5,.05],["sat","Compressione delle alte luci (0 = minima; più alto = saturazione anticipata)",0,4,.1],["d","Diametro del foro / pinhole (mm)",.05,1,.01],["t","Spessore della lamiera del foro (mm)",.01,.5,.01],["vg","Vignettatura del foro (0 = nessuna, 1 = fisica)",0,1.5,.05]];
+const pre=[{D:40,f:20,Hn:60,hh:30,tw:0,rc:0,tl:0},{D:37.34,Hn:97,hh:63.5,tw:1.2,rc:7.28,tl:0},{D:30,Hn:120,Wn:140,hh:90,tw:0,rc:0,tl:0,d:.3,t:.05},{D:52,Hn:60,hh:0,tw:0,rc:0,tl:90}];
+const V={ta:1,bg:.80,lat:40.7,f:20,d:.2,t:.1,off:0,hd:180,rl:0,ds:1,ex:1,hz:2,ls:1,mo:0,cl:1,Wn:140,cm:0,sat:1.5,vg:.4};
+let S=2,raw=false,tmr,MD=null,SEED=1,NEG=false,RND=false,NT="",AUTO_D=true,AUTO_W=true;
+const $=i=>document.getElementById(i),fm=(x,n=1)=>x.toFixed(n).replace(".",",");
+P.forEach(([k,l,a,b,s])=>{const e=document.createElement("label");e.innerHTML=`<span>${l}<b id="v_${k}" style="display:none"></b><input type="number" id="n_${k}" min="${a}" max="${b}" step="${s}" style="width:72px;padding:2px 4px;background:var(--bg);color:var(--fg);border:1px solid var(--bd);border-radius:5px;font:inherit"></span><input type="range" id="i_${k}" min="${a}" max="${b}" step="${s}">`;$("c").append(e);
+const go=v=>{
+ if(k==="d"){AUTO_D=false;syncAutoChecks()}
+ if(k==="Wn"){AUTO_W=false;syncAutoChecks()}
+ setV(k,v);
+ if(RND&&k==="D"){setV("Hn",V.D);setV("hh",V.D/2);}
+ if(["D","f","tw"].includes(k))updateAutoGeometry("all");
+ NT="";sched()
+};
+e.querySelector("input[type=range]").oninput=ev=>go(+ev.target.value);
+e.querySelector("input[type=number]").oninput=ev=>{const v=parseFloat(ev.target.value);if(!isNaN(v))go(Math.min(b,Math.max(a,v)));};});
+function setV(k,v){if(k==="tl")v=Math.round(v);if(k==="hh"&&S!=3)v=Math.min(v,V.Hn);V[k]=v;if(k==="Hn"){$("i_hh").max=v;if(V.hh>v)setV("hh",v)}if(k==="mo")$("c2").style.opacity=v;$("i_"+k).value=v;{const n=$("n_"+k);if(n&&(document.activeElement!==n||k==="tl"))n.value=v}$("v_"+k).textContent=" "+String(+v).replace(".",",");if(k==="lat")latUI(v)}
+function focalLength(){const R=V.D/2;return S===0?V.f:S===1?R+V.tw:S===2?V.D:R}
+function updateAutoGeometry(which="all"){
+ const f=Math.max(1,focalLength());
+ if((which==="all"||which==="d")&&AUTO_D){const d=Math.max(.05,Math.min(1,Math.round(.25*Math.sqrt(f/52)*100)/100));setV("d",d)}
+ if((which==="all"||which==="Wn")&&AUTO_W){const w=Math.max(40,Math.min(320,Math.round(140*V.D/52)));setV("Wn",w)}
+ syncAutoChecks()
+}
+function syncAutoChecks(){const d=$("autoD"),w=$("autoW");if(d)d.checked=AUTO_D;if(w)w.checked=AUTO_W}
+function autoControl(id,text,which){const wrap=document.createElement("div");wrap.style.cssText="margin:0 0 7px 2px;font-size:12px;color:var(--mut)";const lab=document.createElement("label");lab.style.cssText="display:flex;gap:6px;align-items:center;margin:0";const cb=document.createElement("input");cb.type="checkbox";cb.id=id;cb.checked=which==="d"?AUTO_D:AUTO_W;const tx=document.createElement("span");tx.textContent=text;lab.append(cb,tx);wrap.append(lab);cb.onchange=e=>{if(which==="d")AUTO_D=e.target.checked;else AUTO_W=e.target.checked;if(e.target.checked)updateAutoGeometry(which);else syncAutoChecks();NT="";sched()};return wrap}
+function latUI(v){const e=$("sub");if(e)e.textContent=`Sole alla latitudine ${fm(Math.abs(v),1)}° ${v<0?"S":"N"}${Math.abs(v-40)<.05?" (Casarano)":""}, tutto l’anno solare.`;const q=$("pl");if(q){const o=[...q.options].find(o=>o.value!="x"&&Math.abs(+o.value-v)<.05);q.value=o?o.value:"x"}}
+const GR=[["Luogo",["lat"]],["Dati della fotocamera",["D","f","Hn","Wn","tw","rc","d","t"]],["Posizione del foro",["hh","off"]],["Orientamento",["tl","rl"]],["Rappresentazione",["hz","bg","ex","sat","vg"]]],SHOW=[["D","f","Hn","tw","rc","hh"],["D","Hn","tw","rc","hh"],["D","Hn","Wn","hh"],["D","Hn","off"]],ALW=["tl","rl","hz","bg","lat","ex","d","t","sat","vg"],DL=["Larghezza della carta (mm)","Diametro interno del semicerchio (mm)","Diametro interno della lattina (mm)","Diametro del cilindro (mm)"];
+const lab=(k,t)=>{$("i_"+k).parentElement.querySelector("span").firstChild.nodeValue=t};
+function group(){GR.forEach(([n,ks])=>{const dt=document.createElement("details");dt.open=true;dt.innerHTML=`<summary><b>${n}</b></summary>`;
+if(n=="Orientamento"){dt.insertAdjacentHTML("beforeend",'<div class="m" style="margin-top:6px">Direzione del foro (clic sul punto cardinale)</div>');const hb=document.createElement("div");hb.style.cssText="display:flex;flex-wrap:wrap;gap:4px;margin:6px 0";
+[["N",0],["NE",45],["E",90],["SE",135],["S",180],["SO",225],["O",270],["NO",315]].forEach(([t,a])=>{const b=document.createElement("button");b.textContent=t;b.dataset.a=a;b.style.cssText="padding:5px 9px;border:1px solid var(--bd);border-radius:6px;background:var(--bg);color:var(--fg);cursor:pointer";b.onclick=()=>{V.hd=a;hbs();sched()};hb.append(b)});dt.append(hb)}
+if(n=="Luogo"){const q=document.createElement("select");q.id="pl";q.style.margin="6px 0";[["Casarano (40° N)",40],["Roma (41,9° N)",41.9],["Milano (45,5° N)",45.5],["Palermo (38,1° N)",38.1],["Atene (38,0° N)",38],["Madrid (40,4° N)",40.4],["Parigi (48,9° N)",48.9],["Londra (51,5° N)",51.5],["Mosca (55,8° N)",55.8],["Reykjavík (64,1° N)",64.1],["Tromsø (69,6° N)",69.6],["New York (40,7° N)",40.7],["Los Angeles (34,1° N)",34.1],["Tokyo (35,7° N)",35.7],["Il Cairo (30,0° N)",30],["Mumbai (19,1° N)",19.1],["Singapore (1,4° N)",1.4],["Nairobi (1,3° S)",-1.3],["Sydney (33,9° S)",-33.9],["Buenos Aires (34,6° S)",-34.6],["Auckland (36,8° S)",-36.8],["Ushuaia (54,8° S)",-54.8],["Equatore (0°)",0],["Tropico del Cancro (23,4° N)",23.44],["Circolo polare artico (66,6° N)",66.56],["Polo Nord (90° N)",90],["Polo Sud (90° S)",-90]].forEach(([t,v])=>{const o=document.createElement("option");o.value=v;o.textContent=t;q.append(o)});const oc=document.createElement("option");oc.value="x";oc.textContent="Personalizzata";q.append(oc);q.onchange=e=>{if(e.target.value!="x"){setV("lat",+e.target.value);NT="";sched()}};dt.append(q)}
+ks.forEach(k=>{
+ const row=$("i_"+k).parentElement;dt.append(row);
+ if(k==="Wn")dt.append(autoControl("autoW","Calcola larghezza (140 mm con diametro 52 mm)","Wn"));
+ if(k==="d")dt.append(autoControl("autoD","Calcola il foro automaticamente dalla focale","d"));
+});
+if(n=="Orientamento"){const rb=document.createElement("div");rb.style.cssText="display:flex;flex-wrap:wrap;gap:4px;margin:8px 0;align-items:center";
+[["Azzera rotazione (0°)",0],["Orizzontale ↺ (+90°)",90],["Orizzontale ↻ (−90°)",-90]].forEach(([t,a])=>{const b=document.createElement("button");b.type="button";b.textContent=t;b.title=a==0?"Riporta la rotazione attorno all’asse a 0° (fotocamera dritta)":"Mette la fotocamera in orizzontale; l’immagine viene ruotata per tenere il cielo in alto";b.onclick=()=>{setV("rl",a);NT="";sched()};rb.append(b)});
+dt.append(rb);const rs=dt.querySelector("#i_rl");rs.title="Doppio clic per riportare a 0°";rs.ondblclick=()=>{setV("rl",0);NT="";sched()}}
+$("c").append(dt)});hbs()}
+function hbs(){document.querySelectorAll("[data-a]").forEach(b=>{const on=+b.dataset.a==V.hd;b.style.borderColor=on?"var(--ac)":"var(--bd)";b.style.fontWeight=on?"700":"400"})}
+function vis(){P.forEach(([k])=>{if(!ALW.includes(k))$("i_"+k).parentElement.style.display=SHOW[S].includes(k)?"":"none"});lab("D",RND?"Diametro della carta (mm)":DL[S]);if($("hb"))$("hb").style.display=S==3?"none":"flex";if(RND)["Hn","tw","rc"].forEach(k=>$("i_"+k).parentElement.style.display="none");lab("hh",S==3?"Foro sopra il bordo alto del negativo (mm)":"Distanza del foro dal bordo inferiore (mm)")}
+function applyPre(){Object.entries(pre[S]).forEach(([k,v])=>setV(k,v));if(RND){setV("Hn",V.D);setV("hh",V.D/2)}updateAutoGeometry("all");vis()}
+P.forEach(([k])=>setV(k,V[k]??0));group();latUI(V.lat);addHole();setPr(0);$("sd").value=SEED;applyPre();
+$("pr").onchange=e=>{setPr(+e.target.value);sched()};["d0","d1"].forEach(k=>$(k).onchange=()=>{$("pr").value=3;sched()});
+$("sd").oninput=e=>{SEED=+e.target.value||0;sched()};$("nw").onclick=()=>{SEED=Math.floor(Math.random()*99999)+1;$("sd").value=SEED;sched()};
+$("ng").onclick=()=>{NEG=!NEG;$("c1").style.filter=NEG?"invert(1)":"";$("ng").textContent=NEG?"Mostra il positivo":"Mostra il negativo"};
+function dateISO(y,m,d){return `${y}-${String(m).padStart(2,"0")}-${String(d).padStart(2,"0")}`}
+function setPr(i){
+ const now=new Date(),today=Date.UTC(now.getFullYear(),now.getMonth(),now.getDate()),y=now.getFullYear();let a="",b="";
+ if(i===0||i===1){const ys=Date.UTC(y,11,21)<today?y+1:y;a=dateISO(ys,12,21);b=dateISO(ys+1,i===0?12:6,21)}
+ else if(i===2){const ys=Date.UTC(y,5,21)<today?y+1:y;a=dateISO(ys,6,21);b=dateISO(ys,12,21)}
+ if(i<3){$("d0").value=a;$("d1").value=b}$("pr").value=i
+}
+function solFit(m){
+ if(S==3)return;
+ const G0=geom(),sg0=Math.max(.36,hyp(V.d,.0093*G0.rch,2.44*5.5e-4*G0.rch/V.d)*G0.sc/3.0),MARG=Math.round((2.6*sg0/G0.sc+.4)*10)/10,m0=m;m=Math.max(m,MARG);
+ const original=V.tl,L=V.lat*rad,dc=(V.lat<0?-1:1)*23.44*rad,U=sin(L)*sin(dc)+cos(L)*cos(dc),Nn=cos(L)*sin(dc)-sin(L)*cos(dc);
+ const at=tl=>{V.tl=tl;const B=basis();if(!trace(Nn*B.x[1]+U*B.x[2],Nn*B.u[1]+U*B.u[2],Nn*B.z[1]+U*B.z[2],true))return NaN;const G=geom(),pos=V.hh-o.Y;if(Math.abs(o.X)>G.Xm+1e-6)return NaN;if(RND&&o.X*o.X+(pos-V.D/2)**2>(V.D/2)**2+1e-6)return NaN;return pos};
+ let prev=null,root=null,near={tl:0,err:Infinity,pos:NaN};
+ for(let i=0;i<=1800;i++){const tl=-90+i*.1,pos=at(tl);if(Number.isFinite(pos)&&Math.abs(pos-m)<near.err)near={tl,err:Math.abs(pos-m),pos};
+  if(prev&&Number.isFinite(pos)&&(prev.pos-m)*(pos-m)<=0){let lo=prev.tl,hi=tl,fl=prev.pos-m;
+   for(let j=0;j<32;j++){const mid=(lo+hi)/2,pm=at(mid),fmv=pm-m;if(!Number.isFinite(fmv))break;if(fl*fmv<=0)hi=mid;else{lo=mid;fl=fmv}}
+   const t=(lo+hi)/2;if(root===null||Math.abs(t-original)<Math.abs(root-original))root=t;
+  }
+  prev=Number.isFinite(pos)?{tl,pos}:null;
+ }
+ V.tl=original;
+ if(root===null){
+  // L’asse si regola a gradi interi: scegli il miglior angolo realmente utilizzabile
+  // invece di lasciare la camera invariata se il bordo è irraggiungibile.
+  let best={tl:0,pos:NaN,err:Infinity};
+  for(let tl=-90;tl<=90;tl++){
+   const pos=at(tl);
+   if(Number.isFinite(pos)&&Math.abs(pos-m)<best.err)best={tl,pos,err:Math.abs(pos-m)};
+  }
+  V.tl=original;
+  if(Number.isFinite(best.pos)){
+   setV("tl",best.tl);V.tl=best.tl;
+   const B=basis();trace(Nn*B.x[1]+U*B.x[2],Nn*B.u[1]+U*B.u[2],Nn*B.z[1]+U*B.z[2],true);
+   NT=`Con questa geometria il solstizio non può arrivare esattamente a ${fm(m)} mm dal bordo. Miglior inclinazione intera: ${best.tl}°; il centro del Sole resta a ${fm(best.pos)} mm. Camera: ${fm(V.D,1)} mm, negativo ${fm(V.Hn,1)} mm, foro a ${fm(V.hh,1)} mm dal bordo inferiore, negativo avvolto ${fm(V.Wn,1)} mm, foro ${fm(V.d,2)} mm e lamiera ${fm(V.t,2)} mm. Controlla soprattutto posizione del foro e altezza del negativo.`;
+  }else NT=`Il solstizio non raggiunge il negativo con questa forma e orientazione. Controlla che il foro guardi verso il cielo e che lo spessore della lamiera non blocchi il raggio.`;
+  $("nt").textContent=NT;return
+ }
+ const t=Math.round(root);V.tl=original;setV("tl",t);let p=at(t);const hh0=V.hh;if(Number.isFinite(p)&&Math.abs(m-p)>.005){setV("hh",Math.round((V.hh+m-p)*100)/100);const p2=at(t);if(Number.isFinite(p2))p=p2}V.tl=t;
+ NT=`Solstizio${m0?" + "+m0+" mm":" sul bordo (con "+fm(m,1)+" mm di margine, così la traccia non viene tagliata)"}: inclinazione ${fm(t,0)}° con il foro a ${fm(V.hh,1)} mm dal bordo basso${Math.abs(V.hh-hh0)>.04?` (corretto di ${fm(V.hh-hh0,1)} mm perché l’inclinazione è a gradi interi)`:""}. Il centro del sole cade a ${fm(p)} mm dal bordo; la lamiera lascia passare il ${fm(o.T*100,0)}% della luce a quell’angolo.`;
+ $("nt").textContent=NT
+}
+function addHole(){const bar=document.createElement("div");bar.id="hb";bar.style.cssText="display:flex;flex-wrap:wrap;gap:4px;margin:6px 0;align-items:center";
+const add=(t,fn,ti)=>{const b=document.createElement("button");b.type="button";b.textContent=t;b.title=ti||"";b.onclick=fn;bar.append(b)},go=v=>{setV("hh",Math.max(0,Math.round(v*2)/2));NT="";sched()};
+add("Centro",()=>go(V.Hn/2));add("⅓ superiore",()=>go(2*V.Hn/3));add("¼ superiore",()=>go(3*V.Hn/4));
+add("Solstizio sul bordo",()=>{solFit(0);sched()},"Con il foro dove l’hai messo, calcola l’inclinazione della camera perché il sole più alto (solstizio d’estate) tocchi il bordo basso del negativo");add("Solstizio + 5 mm",()=>{solFit(5);sched()},"Come sopra, con 5 mm di margine");
+$("i_hh").parentElement.before(bar)}
+$("sh").onchange=e=>{RND=e.target.value=="4";S=RND?0:+e.target.value;applyPre();sched()};
+function sched(){try{window.__arDirty&&window.__arDirty()}catch(e){}if(TLrun){TLrun=false;cancelAnimationFrame(TLr);$("tp").textContent="▶ Avvia"}draw3d();clearTimeout(tmr);$("st").textContent="…";tmr=setTimeout(run,350)}
+function basis(){const h=V.hd*rad,t=V.tl*rad,r=V.rl*rad,z=[cos(t)*sin(h),cos(t)*cos(h),sin(t)],u=[-sin(t)*sin(h),-sin(t)*cos(h),cos(t)];
+const x=[z[1]*u[2]-z[2]*u[1],z[2]*u[0]-z[0]*u[2],z[0]*u[1]-z[1]*u[0]],c=cos(r),s=sin(r);
+return{x:x.map((a,i)=>a*c+u[i]*s),u:u.map((a,i)=>a*c-x[i]*s),z}}
+const o={},wrap=a=>a-2*PI*Math.round(a/(2*PI));
+function trace(sx,sy,sz,unbounded=false){if(sz<1e-4)return false;
+const vx=-sx,vy=-sy,vz=-sz,{D,f,Hn,hh,d,t,tw,rc,off}=V,R=D/2;
+if(rc>0&&tw>0&&hyp(vx,vy)*tw/sz>rc)return false;
+const sh=t*hyp(sx,sy)/sz;if(sh>=d)return false;
+const a=d/2,T=(2*a*a*Math.acos(sh/d)-sh/2*Math.sqrt(d*d-sh*sh))/(PI*a*a);
+let tt,hx,hy,hz,u,w,cf,rch,X;
+if(S==0){tt=f/sz;hx=vx*tt;hy=vy*tt;const cy=R-hh;if(!unbounded&&(Math.abs(hx)>R||(RND&&hx*hx+(hy-cy)*(hy-cy)>R*R)))return false;u=hx;w=hy;cf=sz;rch=f;X=-u}
+else if(S<3){const c0=S==1?tw:R,A=vx*vx+vz*vz,B=c0*vz;
+tt=(-B+Math.sqrt(B*B-A*(c0*c0-R*R)))/A;hx=vx*tt;hy=vy*tt;hz=vz*tt;if(S==1&&hz>-tw)return false;
+w=hy;u=R*Math.atan2(hx,-(hz+c0));if(S==2&&!unbounded&&Math.abs(u)>V.Wn/2)return false;cf=Math.abs(vx*hx+vz*(hz+c0))/R;rch=S==1?R+tw:D;X=-u}
+else{const A=vx*vx+vy*vy;if(A<1e-9)return false;const b=2*off*vx,c0=off*off-R*R;
+tt=(-b+Math.sqrt(b*b-4*A*c0))/(2*A);hx=off+vx*tt;hy=vy*tt;hz=vz*tt;if(!unbounded&&(-hz<hh||-hz>hh+Hn))return false;
+w=hz;cf=Math.abs(vx*hx+vy*hy)/R;rch=R;X=R*wrap(Math.atan2(hy,hx)-PI/2)}
+if(!unbounded&&S<3&&(w<-hh||w>Hn-hh))return false;
+o.X=X;o.Y=-w;o.T=T;o.Eg=sz*cf*rch*rch/(tt*tt);return true}
+function geom(){const R=V.D/2,Xm=S==0?R:S==1?PI*R/2:S==2?Math.min(PI*R,V.Wn/2):PI*R,y0=S==3?V.hh:-(V.Hn-V.hh),y1=S==3?V.hh+V.Hn:V.hh,maxH=Math.max(300,Math.min(900,(window.innerHeight||800)*.84)),maxW=Math.min(1000,Math.max(380,(window.innerWidth||1200)*.78)),sc=Math.min(maxW/(2*Xm),maxH/(y1-y0));
+return{Xm,y0,y1,sc,W:Math.ceil(2*Xm*sc),H:Math.ceil((y1-y0)*sc),rch:S==0?V.f:S==1?R+V.tw:S==2?V.D:R}}
+function mapCalc(G,B){const n=G.W*G.H,M={G,Et:new Float32Array(n),Tt:new Float32Array(n),Gg:new Float32Array(n),WE:new Float32Array(n),WN:new Float32Array(n),WU:new Float32Array(n),C:new Uint8Array(n),mn:[90,90,90,90],mx:[-1,-1,-1,-1]},{D,f,tw,off}=V,R=D/2,c0=S==1?tw:R;
+for(let py=0;py<G.H;py++)for(let px=0;px<G.W;px++){let X=(px+.5)/G.sc-G.Xm,Y=G.y1-(py+.5)/G.sc,vx,vy,vz;if(raw){X=-X;Y=G.y0+G.y1-Y}
+if(S==0){vx=-X;vy=-Y;vz=-f}else if(S<3){const a=-X/R;vx=R*sin(a);vy=-Y;vz=-c0-R*cos(a)}else{const p=X/R+PI/2;vx=R*cos(p)-off;vy=R*sin(p);vz=-Y}
+const m=hyp(vx,vy,vz);if(!m)continue;const sx=-vx/m,sy=-vy/m,sz=-vz/m;let state=1,ok=trace(sx,sy,sz);
+if(!ok&&S===0&&RND){const oldRnd=RND;RND=false;ok=trace(sx,sy,sz);RND=oldRnd;if(ok)state=2}
+if(!ok)continue;
+const i=py*G.W+px;M.C[i]=state;M.Et[i]=o.Eg*o.T;M.Tt[i]=o.T;M.Gg[i]=o.Eg;M.WE[i]=sx*B.x[0]+sy*B.u[0]+sz*B.z[0];M.WN[i]=sx*B.x[1]+sy*B.u[1]+sz*B.z[1];M.WU[i]=sx*B.x[2]+sy*B.u[2]+sz*B.z[2]}
+{let em=0,tm=0;for(let i=0;i<n;i++)if(M.C[i]){if(M.Et[i]>em)em=M.Et[i];if(M.Tt[i]>tm)tm=M.Tt[i]}M.Em=em;M.Tm=tm}
+for(let j=0;j<4;j++){const cp=cos(j*PI/2),sp=sin(j*PI/2);for(let ti=0;ti<900;ti++){const th=(ti+.5)*.1;if(trace(sin(th*rad)*cp,sin(th*rad)*sp,cos(th*rad))){M.mn[j]=Math.min(M.mn[j],th);M.mx[j]=Math.max(M.mx[j],th)}}}return M}
+function drawMap(){const M=MD,G=M.G,v=0,A=v==0?M.Et:v==1?M.Tt:M.Gg,n=G.W*G.H;let mx=0,mn=1e9;
+for(let i=0;i<n;i++)if(M.C[i]){const q=A[i]/M.C[i];if(q>mx)mx=q;if(q<mn)mn=q}
+const cv=$("c2");cv.width=G.W;cv.height=G.H;const cx=cv.getContext("2d"),im=cx.createImageData(G.W,G.H),
+cm=[[20,20,70],[40,110,160],[60,170,110],[240,220,80],[255,255,255]];
+for(let i=0;i<n;i++){let r=45,g=45,b=52;if(M.C[i]&&mx>0){const q=Math.min(.9999,Math.max(0,(Math.log10(Math.max(A[i]/M.C[i]/mx,1e-6))+3)/3))*4,j=Math.floor(q),f=q-j;
+r=cm[j][0]+(cm[j+1][0]-cm[j][0])*f;g=cm[j][1]+(cm[j+1][1]-cm[j][1])*f;b=cm[j][2]+(cm[j+1][2]-cm[j][2])*f}
+im.data[4*i]=r;im.data[4*i+1]=g;im.data[4*i+2]=b;im.data[4*i+3]=255}cx.putImageData(im,0,0);
+$("info").textContent=""}
+const D21=[21,52,80,111,141,172,202,233,264,294,325,355],rnd=n=>{const x=Math.sin(n*127.1+311.7)*43758.5453;return x-Math.floor(x)},nz1=(t,s)=>{const i=Math.floor(t),f=t-i,u=f*f*(3-2*f),a=rnd(i*7.13+s),b=rnd((i+1)*7.13+s);return a+(b-a)*u},sm=(a,b,x)=>{const t=Math.max(0,Math.min(1,(x-a)/(b-a)));return t*t*(3-2*t)};
+const doy=s=>{const t=new Date(s+"T00:00:00Z");if(!s||!Number.isFinite(t.getTime()))return NaN;let n=Math.round((t-Date.UTC(t.getUTCFullYear(),0,1))/864e5)+1;const y=t.getUTCFullYear();if((y%4==0&&y%100!=0||y%400==0)&&n>59)n--;return n};
+function dateInfo(k){const base=Date.parse($("d0").value+"T00:00:00Z"),dt=new Date(base+k*864e5);return{N:doy(dt.toISOString().slice(0,10)),Y:dt.getUTCFullYear()}}
+function validDateRange(){const a=Date.parse($("d0").value+"T00:00:00Z"),b=Date.parse($("d1").value+"T00:00:00Z");return !!$("d0").value&&!!$("d1").value&&Number.isFinite(a)&&Number.isFinite(b)&&b>a&&(b-a)/864e5<=3650}
+function days(){if(!validDateRange())return[];const a=Date.parse($("d0").value+"T00:00:00Z"),b=Date.parse($("d1").value+"T00:00:00Z"),len=Math.round((b-a)/864e5),l=[];for(let k=0;k<len;k+=V.ds>=30?1:V.ds){const N=dateInfo(k).N;if(V.ds<30||D21.includes(N))l.push(k)}return l}
+// Frazione di sole (ore di sole / durata del giorno), Lecce 1991-2020, da climieviaggi.it
+const MF=[.46,.45,.46,.53,.63,.71,.80,.78,.70,.61,.49,.44],MID=[15.5,45,74.5,105,135.5,166,196.5,227.5,258,288.5,319,349.5];
+// Frazione di sole mensile (emisfero nord, gen→dic) per fasce di latitudine: valori climatologici indicativi
+const ANC=[[0,[.50,.50,.48,.46,.45,.46,.48,.50,.50,.48,.46,.47]],[25,[.72,.74,.76,.80,.84,.88,.88,.86,.84,.80,.74,.70]],[40,MF],[52,[.22,.30,.36,.42,.46,.46,.46,.44,.40,.32,.24,.19]],[65,[.20,.32,.44,.48,.42,.40,.38,.34,.28,.22,.18,.14]],[85,[.45,.45,.42,.35,.25,.22,.22,.22,.25,.30,.40,.45]]];
+function clim(){if(V.cm>0)return ANC[V.cm-1][1];const a=Math.min(85,Math.abs(V.lat));let i=0;while(i<ANC.length-2&&a>ANC[i+1][0])i++;const[p,A]=ANC[i],[q,B]=ANC[i+1],t=Math.max(0,Math.min(1,(a-p)/(q-p)));return A.map((x,j)=>x+(B[j]-x)*t)}
+function sunf(N){const MF=clim();if(V.lat<0)N=(N+181)%365+1;const p=N-.5;let m=11;for(let i=0;i<12;i++)if(MID[i]>p){m=i-1;break}const a=m<0?11:m,b=(m+1)%12,pa=m<0?MID[11]-365:MID[a],pb=m<0?MID[0]:(m==11?MID[0]+365:MID[b]);return MF[a]+(MF[b]-MF[a])*(p-pa)/(pb-pa)}
+// Meteo giornaliero: periodi di 1-6 giorni (coperto / variabile / sereno) con mix dato dalla media mensile di Lecce,
+// più una retroazione sugli ultimi 30 giorni (tiene la media di ogni mese vicina al dato reale) e un limite ai giorni coperti di fila.
+function mulberry(a){return()=>{let t=a+=0x6D2B79F5;t=Math.imul(t^t>>>15,t|1);t^=t+Math.imul(t^t>>>7,t|61);return((t^t>>>14)>>>0)/4294967296}}
+const WX={m:new Map()};
+function wxYear(Y){const key=SEED+"|"+V.lat+"|"+V.cm+"|"+Y,PS=1.1+.9*Math.min(1,Math.abs(V.lat)/50);if(WX.m.has(key))return WX.m.get(key);
+const R=mulberry(((SEED+Y*7919)*2654435761+97)>>>0),a=new Float32Array(366),h=[];let left=0,s0=.5,run=0;
+for(let i=0;i<425;i++){const N=((i-60)%365+365)%365+1,f=sunf(N);
+if(left<=0){let po,pp;if(f>=.78){po=0;pp=Math.max(0,(.9-f)/.4)}else{po=1.12*(.78-f)/.78;pp=.3}
+const rec=h.slice(-30),m=rec.length?rec.reduce((x,y)=>x+y,0)/rec.length:f,sh=Math.max(-.3,Math.min(.3,(m-f)*1.6));
+po=Math.max(0,Math.min(1-pp,po+sh*.7));if(run>=3)po=0;
+const r=R();s0=r<po?.02+.2*R():r<po+pp?.3+.4*R():.8+.2*R();left=1+Math.min(5,Math.floor(-Math.log(1-R())*PS))}
+left--;const v=Math.max(0,Math.min(1,s0+(R()-.5)*.14));h.push(v);run=v<.25?run+1:0;if(i>=60)a[N]=v}
+if(WX.m.size>=32)WX.m.delete(WX.m.keys().next().value);WX.m.set(key,a);return a}
+function dsun(N,Y){return Math.max(0,Math.min(1,1-(1-wxYear(Y)[N])*V.cl))}
+function cloudT(N,h,sy){if(sy>=.99)return 1;if(sy<=.01)return 0;const c=.5-.2*Math.log(sy/(1-sy))/1.7,t=(h+180)/15,s=N*3.7+SEED*91.1,n=.6*nz1(t/1.3,s)+.4*nz1(t/.3,s+50);return sm(c-.022,c+.022,n)}
+const prof=a=>{const d=((a/rad)%360+360)%360,h=V.hz*rad*(.2+.8*(.6*rnd(Math.floor(d/9)*3.1+5)+.4*rnd(Math.floor(d/3.1)*3.7+11)));return Math.abs(d-190)<.22?Math.max(h,(V.hz*1.5+3)*rad):h};
+// Vignettatura fisica: illuminazione relativa = cos(angolo foro) · cos(angolo pellicola) · (r0/r)^2 · T,
+// con T = sovrapposizione dei due cerchi (ingresso/uscita) del foro inclinato nella lamiera. Va dal 100% a 0 in modo continuo.
+// L'esponente 0,45 (= 1/2,2) la porta nella scala gamma dell'immagine mostrata.
+const VBG=[11,11,15];
+function vigF(i){const M=MD;if(!M||!M.Em||V.vg<=0)return 1;return Math.pow(Math.max(0,Math.min(1,M.Et[i]/M.Em)),.45*V.vg)}
+// Le tracce del sole hanno già l'esposizione ridotta da Eg·T: qui sfumano solo verso il bordo del campo (T del foro), così restano ben visibili.
+function trkF(i){const M=MD;if(!M||!M.Tm||V.vg<=0)return 1;const q=Math.max(0,Math.min(1,M.Tt[i]/(.12*M.Tm)));return q*q*(3-2*q)}
+function scene(cx,G){
+ const n=G.W*G.H,im=cx.createImageData(G.W,G.H),d=im.data,M=MD,AH=V.hz*1.5+3;
+ const clamp=(x,a,b)=>Math.max(a,Math.min(b,x));
+ const houses=[[151,3.3,1.25],[158,2.0,1.8],[166,3.6,1.35],[177,4.2,1.65],[190,2.1,1.05],[203,4.1,1.55],[214,3.8,2.0],[224,2.8,1.15]];
+ for(let i=0;i<n;i++){
+  let r=11,g=11,b=15;
+  if(M&&M.C[i]){
+   const el=Math.asin(clamp(M.WU[i],-1,1)),az=Math.atan2(M.WE[i],M.WN[i]),ad=((az/rad)%360+360)%360,ed=el/rad,pf=prof(az)/rad,da=Math.abs(ad-190),
+    q=Math.sin(i*12.9898)*43758.5453,nz=(q-Math.floor(q)-.5)*4.2;
+   let c=null;
+   // Orizzonte abitato basso: case irregolari, tetti e poche aperture scure.
+   if(ed>-0.15){
+    for(let j=0;j<houses.length;j++){
+     const [a,w,h]=houses[j],dd=Math.abs(((ad-a+540)%360)-180),seed=houses[j][0]*19.3+SEED*7.1;
+     const hh=h*(.82+.30*rnd(seed));
+     if(dd<w/2 && ed<hh && ed>-0.18){
+      const roof=ed>hh-.16;
+      const window=ed<hh*.60 && rnd(Math.floor(dd*5+1)*31+j*13)>0.77 && ed>hh*.22;
+      c=window?[41,45,43]:roof?[79,73,61]:[83+5*rnd(seed+2),79+4*rnd(seed+3),67+3*rnd(seed+4)];
+      break;
+     }
+    }
+   }
+   if(!c&&ed>pf){
+    // La volta celeste non deve collassare quasi al nero allo zenit.
+    const t=Math.pow(1-Math.min(1,ed/100),.68);
+    // Cielo diurno: il blu allo zenit resta più scuro dell’orizzonte, ma non quasi nero.
+    c=[112+88*t,145+88*t,180+70*t].map(v=>v*.62);
+   } else if(!c&&ed>0){
+    const sh=.72+.3*rnd(Math.floor(ad/9)*3.1+5),wx=(ad/2.4)%1,wy=(ed/1.8)%1,
+     win=ed<pf-.7&&rnd(Math.floor(ad/2.4)*7.3+Math.floor(ed/1.8)*13.1)>.5&&wx>.25&&wx<.75&&wy>.3&&wy<.7;
+    c=win?[48,62,67]:pf-ed<.22?[119,111,89]:[147*sh,132*sh,102*sh];
+   } else if(!c){
+    // Terreno secco mediterraneo: zolle, chiazze d'erba, ghiaia e pietre.
+    const depth=clamp(-ed/38,0,1),ax=ad*22,ey=(-ed)*14,ix=Math.floor(ax),iy=Math.floor(ey),fx=ax-ix,fy=ey-iy,
+     seed=ix*73.17+iy*193.31+SEED*17.3,coarse=rnd(Math.floor(ad*3.3)*71+Math.floor(depth*18)*113+SEED*7),fine=rnd(ix*29.7+iy*61.9+SEED*11),grain=rnd(i*1.17+SEED*91),
+     dry=[104-7*depth,100-16*depth,66-12*depth],green=[91-4*depth,101-14*depth,57-12*depth],mix=clamp(.25+.30*(1-depth)+(.5-coarse)*.22,0,.65);
+    c=dry.map((v,k)=>v*(1-mix)+green[k]*mix+(fine-.5)*20+(grain-.5)*8);
+    // Erba bassa: fili fini e discontinui, più presente vicino alla linea dell'orizzonte.
+    const blade=rnd(seed+5.7),bx=.28+.44*rnd(seed+19.2),by=.14+.72*rnd(seed+8.1);
+    if(depth<.9 && blade<.48 && Math.abs(fx-bx)<.055 && fy>by-.22 && fy<by+.12){
+     c=[c[0]*.61+28,c[1]*.60+37,c[2]*.58+17];
+    } else if(depth<.9 && blade>.48&&blade<.57&&Math.abs(fx-bx)<.06&&fy>by-.13&&fy<by+.06){
+     c=[c[0]*.68+46,c[1]*.68+45,c[2]*.65+22];
+    }
+    // Ciottoli irregolari con lato in ombra e piccola luce, distribuiti in modo stabile.
+    const sx=ad*12,sy=(-ed)*7.2,sxI=Math.floor(sx),syI=Math.floor(sy),lx=sx-sxI,ly=sy-syI,
+     stoneSeed=sxI*83.4+syI*131.7+SEED*3.3,stone=rnd(stoneSeed),scx=.18+.64*rnd(stoneSeed+1),scy=.2+.6*rnd(stoneSeed+2),
+     rx=(.15+.12*rnd(stoneSeed+3))*(.8+1.15*depth),ry=(.14+.11*rnd(stoneSeed+4))*(.8+1.15*depth),
+     shape=((lx-scx)/rx)**2+((ly-scy)/ry)**2;
+    if(stone>.70&&shape<1){
+     const edge=clamp(1-shape,0,1),shade=.50+.32*rnd(stoneSeed+5)+.25*edge;
+     c=shape>.78?[72,69,59]:[96+27*shade,91+28*shade,76+25*shade];
+     if(shape<.30&&rnd(stoneSeed+6)>.20)c=[c[0]+18,c[1]+17,c[2]+13];
+    }
+    // Macchie minute di ghiaia e terreno più chiaro: evita l'effetto di una fascia marrone uniforme.
+    if(fine>.86&&depth>.16)c=c.map((v,k)=>v+[13,10,6][k]);
+   }
+   // Silhouette discreta della mast antenna e di un paio di traversi, senza creare un arco nero.
+   if(ed>0 && da<.17 && ed<AH)c=[45,49,46];
+   if(ed>0 && (Math.abs(ed-AH*.8)<.11&&da<1.35 || Math.abs(ed-AH*.65)<.09&&da<.82))c=[53,56,51];
+   // Un solo bordo atmosferico sottile e morbido, non un contorno nero del paesaggio.
+   const horizonDelta=ed-pf;
+   if(Math.abs(horizonDelta)<.12 && ed>0 && da>1.7 && !(c&&c[0]<100)){
+    const blend=(.12-Math.abs(horizonDelta))/.12;
+    c=[c[0]*(1-.10*blend)+60*.10*blend,c[1]*(1-.10*blend)+66*.10*blend,c[2]*(1-.10*blend)+61*.10*blend];
+   }
+   const bg=V.bg;
+   let vignette=1;
+   if(S===0&&RND){
+    const px=i%G.W,py=Math.floor(i/G.W),X=(px+.5)/G.sc-G.Xm,Y=G.y1-(py+.5)/G.sc,cy=V.D/2-V.hh;
+    const rn=hyp(X,Y-cy)/Math.max(1e-6,V.D/2);
+    // Falloff ampio e morbido: niente disco nero con un bordo netto.
+    vignette=1-.62*sm(.72,1.32,rn);
+   }
+   const aperture=vigF(i);
+   r=VBG[0]+(c[0]*bg*vignette-VBG[0])*aperture+nz*aperture;g=VBG[1]+(c[1]*bg*vignette-VBG[1])*aperture+nz*aperture;b=VBG[2]+(c[2]*bg*vignette-VBG[2])*aperture+nz*aperture;
+  }
+  d[4*i]=clamp(r,0,255);d[4*i+1]=clamp(g,0,255);d[4*i+2]=clamp(b,0,255);d[4*i+3]=255;
+ }
+ return im
+}
+function blurBaseImage(image,G,cx){
+ // Il diametro del foro produce un cerchio di confusione anche sul paesaggio.
+ const radius=Math.max(0,Math.min(14,V.d*G.sc*.32));
+ if(radius<.35)return image;
+ const tmp=document.createElement("canvas");tmp.width=G.W;tmp.height=G.H;
+ const tc=tmp.getContext("2d");tc.putImageData(image,0,0);
+ const out=document.createElement("canvas");out.width=G.W;out.height=G.H;
+ const oc=out.getContext("2d");oc.filter=`blur(${radius.toFixed(2)}px)`;oc.drawImage(tmp,0,0);oc.filter="none";
+ return oc.getImageData(0,0,G.W,G.H);
+}
+function probe(dc,B){const L=V.lat*rad,sd=sin(dc*rad),cd=cos(dc*rad),U=sin(L)*sd+cos(L)*cd,Nn=cos(L)*sd-sin(L)*cd,ok=trace(Nn*B.x[1]+U*B.x[2],Nn*B.u[1]+U*B.u[2],Nn*B.z[1]+U*B.z[2],true);return{el:Math.asin(U)/rad,ok,pos:S==3?o.Y-V.hh:V.hh-o.Y,X:o.X}}
+function extra(){const B=basis(),G=geom(),rch=G.rch,t=[],lam=5.5e-4,pe=Math.sqrt(2*rch*lam),ra=1.9*Math.sqrt(rch*lam),st=Math.atan(V.d/V.t)/rad,hs=V.rc>0&&V.tw>0,sv=hs?Math.atan(V.rc/V.tw)/rad:90,
+ok=V.d<pe*.9?"troppo piccolo (diffrazione)":V.d>ra*1.1?"troppo grande (sfocato)":"nel range giusto";
+if(S<3&&MD)t.push(`Campo visivo: ${fm(MD.mx[0]+MD.mx[2],0)}° × ${fm(MD.mx[1]+MD.mx[3],0)}° (orizzontale × verticale)`);
+t.push(`Distanza foro–carta: ${fm(rch)} mm`,`Rapporto focale geometrico: f/${fm(rch/V.d,1)}`,`Pinhole da ${fm(V.d,2)} mm: ${ok}. Range consigliato per questa focale: ${fm(pe,2)}–${fm(ra,2)} mm`);
+if(Math.min(st,sv)<80)t.push(`Campo limitato a ${fm(Math.min(st,sv),0)}° dall’asse dalla ${sv<st?"svasatura":"lamiera"}`);
+if(S==2)t.push(`Azimut massimo registrabile: ±${fm(Math.min(PI,V.Wn/V.D)/rad,1)}°`);
+[["Solstizio di giugno",23.44],["Equinozio",0],["Solstizio di dicembre",-23.44]].forEach(([n,d])=>{const r=probe(d,B),inCircle=!(S==0&&RND)||r.X*r.X+(r.pos-V.D/2)**2<=(V.D/2)**2+1e-6,inside=r.pos>=0&&r.pos<=V.Hn&&Math.abs(r.X)<=G.Xm+1e-6&&inCircle;t.push(!r.ok?`${n}: non registrato`:`${n}: ${fm(r.pos)} mm dal bordo basso${inside?"":" — FUORI dalla carta"}`)});
+return t.join("\n")}
+function annual2(G,B){const W=G.W,H=G.H,cv=$("c1");cv.width=W;cv.height=H;const cx=cv.getContext("2d");let im=scene(cx,G);im=blurBaseImage(im,G,cx);const d=im.data,n=W*H,A0=new Float32Array(n),A1=new Float32Array(n),A2=new Float32Array(n),
+L=V.lat*rad,sl=sin(L),cl=cos(L),ap=(V.d/.3)**2,sg=Math.max(.36,hyp(V.d,.0093*G.rch,2.44*5.5e-4*G.rch/V.d)*G.sc/3.0),rr=Math.max(1,Math.ceil(1.55*sg)),s2=2*sg*sg,nm=1/(PI*s2),TA=EXT.map(x=>x*V.ta),WT=[.55,.8,1],
+xy=()=>{let X=o.X,Y=o.Y;if(raw){X=-X;Y=G.y0+G.y1-Y}return[(X+G.Xm)*G.sc,(G.y1-Y)*G.sc]},
+sp=(x,y,e0,e1,e2)=>{const x0=Math.floor(x)-rr,y0=Math.floor(y)-rr;for(let j=Math.max(0,y0);j<=Math.min(H-1,y0+2*rr+1);j++)for(let i=Math.max(0,x0);i<=Math.min(W-1,x0+2*rr+1);i++){const dx=i+.5-x,dy=j+.5-y,g=Math.exp(-(dx*dx+dy*dy)/s2)*nm,q=j*W+i;A0[q]+=e0*g;A1[q]+=e1*g;A2[q]+=e2*g}};
+const addDay=k=>{const {N,Y}=dateInfo(k);const DC=n=>{const g=2*PI/365*(n-1);return .006918-.399912*cos(g)+.070257*sin(g)-.006758*cos(2*g)+.000907*sin(2*g)-.002697*cos(3*g)+.00148*sin(3*g)},d0=DC(N),dd=DC(N+1)-d0,sy=dsun(N,Y);let pv=null;
+for(let h=-180;h<=180;h+=.25){const dc=d0+dd*h/360,sD=sin(dc),cD=cos(dc),Hh=h*rad,ch=cos(Hh),U0=sl*sD+cl*cD*ch,E0=-cD*sin(Hh),N0=cl*sD-sl*cD*ch,el0=Math.asin(Math.max(-1,Math.min(1,U0)))/rad,rf=el0>-1?1.02/Math.tan((el0+10.3/(el0+5.11))*rad)/60:0,ea=(el0+rf)*rad,kk=cos(ea)/Math.max(1e-9,cos(el0*rad)),U=sin(ea),E=E0*kk,Nn=N0*kk;if(U<=sin(prof(Math.atan2(E,Nn)))){pv=null;continue}
+if(!trace(E*B.x[0]+Nn*B.x[1]+U*B.x[2],E*B.u[0]+Nn*B.u[1]+U*B.u[2],E*B.z[0]+Nn*B.z[1]+U*B.z[2])){pv=null;continue}
+const tr=cloudT(N,h,sy);if(tr<.20){pv=null;continue}const c=xy();
+if(pv&&Math.abs(c[0]-pv[0])<W/2){const m=1/(U+.50572*Math.pow(Math.asin(U)/rad+6.07995,-1.6364)),e=o.Eg*o.T*ap*tr,w0=e*WT[0]*Math.exp(-TA[0]*m),w1=e*WT[1]*Math.exp(-TA[1]*m),w2=e*WT[2]*Math.exp(-TA[2]*m),dm=hyp(c[0]-pv[0],c[1]-pv[1]),nn=Math.max(1,Math.ceil(dm/(.6*sg+.3)));
+for(let j=1;j<=nn;j++){const t=j/nn;sp(pv[0]+(c[0]-pv[0])*t,pv[1]+(c[1]-pv[1])*t,w0/nn,w1/nn,w2/nn)}}pv=c}};const DAYS=days();DYS=DAYS;DAYS.forEach(addDay);const base=new Uint8ClampedArray(d);
+const lum=[];for(let i=0;i<n;i+=5){const v=A0[i]+A1[i]+A2[i];if(v>0)lum.push(v)}lum.sort((a,b)=>a-b);const rp=lum.length?lum[Math.floor(lum.length*.58)]:1,AA=[A0,A1,A2];
+// Curva cromatica da pellicola scansita: viola smorzato → beige/grigio → blu-ciano,
+// con una spalla morbida per evitare che gli archi a maggiore accumulo diventino bianchi.
+const RP=[[0,81,112,128],[.035,84,111,130],[.09,91,105,130],[.17,109,104,133],[.26,129,115,139],[.35,147,136,144],[.45,145,153,157],[.55,116,151,169],[.65,108,161,181],[.75,130,176,191],[.84,158,190,194],[.92,183,198,192],[1,199,204,193]],
+rmp=u=>{let j=1;while(j<RP.length-1&&u>RP[j][0])j++;const a=RP[j-1],b=RP[j],t=Math.max(0,Math.min(1,(u-a[0])/(b[0]-a[0])));return[a[1]+(b[1]-a[1])*t,a[2]+(b[2]-a[2])*t,a[3]+(b[3]-a[3])*t]};
+const paint=rp=>{for(let i=0;i<n;i++){if(MD.C[i]!==1)continue;const s=SHT?A0[i]+A1[i]+A2[i]:0;if(s<=0){d[4*i]=base[4*i];d[4*i+1]=base[4*i+1];d[4*i+2]=base[4*i+2];continue}
+const e=s/rp,e2=e/(1+V.sat*e*.13),u=Math.min(.96,(1-Math.exp(-.62*V.ex*Math.pow(e2,.78)))*sm(4e-4,9e-3,e2)),q=(A2[i]-A0[i])/(A0[i]+A2[i]+1e-12),c=rmp(u),w=sm(.0008,.010,e2),grain=(rnd(i*.731+SEED*19.17)-.5)*3.2,spec=.08*q*sm(.14,.42,u);
+const bi=4*i,br=base[bi],bg=base[bi+1],bb=base[bi+2],baseLum=.2126*br+.7152*bg+.0722*bb;
+let cr=Math.min(255,Math.max(0,c[0]*(1-spec))),cg=Math.min(255,Math.max(0,c[1])),cb=Math.min(255,Math.max(0,c[2]*(1+spec)));
+const vf=trkF(i);cr=VBG[0]+(cr-VBG[0])*vf;cg=VBG[1]+(cg-VBG[1])*vf;cb=VBG[2]+(cb-VBG[2])*vf;
+const targetLum=.2126*cr+.7152*cg+.0722*cb,lift=Math.max(0,baseLum+1.5-targetLum);
+cr=Math.min(255,cr+lift);cg=Math.min(255,cg+lift);cb=Math.min(255,cb+lift);
+d[bi]=Math.max(0,Math.min(255,br+(cr-br)*w+grain*w));d[bi+1]=Math.max(0,Math.min(255,bg+(cg-bg)*w+grain*w));d[bi+2]=Math.max(0,Math.min(255,bb+(cb-bb)*w+grain*w));}
+cx.putImageData(im,0,0);drawAn(cx,G,B)};
+TLi=DAYS.length;paint(rp);TL={DAYS,paint:()=>{cv.width=G.W;cv.height=G.H;paint(rp);grabTex();const k=V.rl>=45?1:V.rl<=-45?-1:0;if(k)rotCv(cv,k);if(!TLrun||TLi%10==0)req3d()},reset:()=>AA.forEach(a=>a.fill(0)),add:addDay};$("tsl").max=DAYS.length;$("tsl").value=DAYS.length}
+let TL=null,TLi=0,DYS=[],SHT=true,TLr=0,TLrun=false,ADT=false;const dN=k=>dateInfo(k).N;const AN=new Set();
+const DCL=n=>{const g=2*PI/365*(n-1);return .006918-.399912*cos(g)+.070257*sin(g)-.006758*cos(2*g)+.000907*sin(2*g)-.002697*cos(3*g)+.00148*sin(3*g)},
+eot=n=>{const g=2*PI/365*(n-1);return 229.18*(.000075+.001868*cos(g)-.032077*sin(g)-.014615*cos(2*g)-.040849*sin(2*g))};
+// posizione sul negativo del sole all'ora solare media T (ore) del giorno N, con equazione del tempo e rifrazione
+function sunPix(N,T,B,G){const L=V.lat*rad,h=15*(T-12)+eot(N)/4,dc=DCL(N)+(DCL(N+1)-DCL(N))*h/360,sD=sin(dc),cD=cos(dc),Hh=h*rad,ch=cos(Hh),U0=sin(L)*sD+cos(L)*cD*ch,E0=-cD*sin(Hh),N0=cos(L)*sD-sin(L)*cD*ch,e0=Math.asin(Math.max(-1,Math.min(1,U0)))/rad,rf=e0>-1?1.02/Math.tan((e0+10.3/(e0+5.11))*rad)/60:0,ea=(e0+rf)*rad,k=cos(ea)/Math.max(1e-9,cos(e0*rad)),U=sin(ea),E=E0*k,Nn=N0*k;
+if(U<=sin(prof(Math.atan2(E,Nn)))||!trace(E*B.x[0]+Nn*B.x[1]+U*B.x[2],E*B.u[0]+Nn*B.u[1]+U*B.u[2],E*B.z[0]+Nn*B.z[1]+U*B.z[2]))return null;return[(o.X+G.Xm)*G.sc,(G.y1-o.Y)*G.sc]}
+function drawAn(cx,G,B){if(!AN.size)return;cx.font="bold 12px system-ui,sans-serif";[...AN].sort((a,b)=>a-b).forEach((T,j)=>{const col=`hsl(${(j*53+25)%360} 95% 60%)`;cx.strokeStyle=col;cx.fillStyle=col;cx.lineWidth=1.3;let pv=null,lp=null;
+DYS.slice(0,TLi).forEach((k,i)=>{const p=sunPix(dN(k),T,B,G);if(p){if(pv&&hyp(p[0]-pv[0],p[1]-pv[1])<G.W/3){cx.beginPath();cx.moveTo(pv[0],pv[1]);cx.lineTo(p[0],p[1]);cx.stroke()}if(i%7==0){cx.beginPath();cx.arc(p[0],p[1],2.6,0,2*PI);cx.fill()}if(ADT&&i%14==0){cx.font="10px system-ui,sans-serif";cx.fillText(new Date(Date.parse($("d0").value)+k*864e5).toLocaleDateString("it",{day:"numeric",month:"short",timeZone:"UTC"}),p[0]+5,p[1]+3);cx.font="bold 12px system-ui,sans-serif"}lp=p}pv=p});if(lp)cx.fillText(fmtT(T),lp[0]+6,lp[1]-6)})}
+function tlSeek(i){if(!TL)return;if(i<TLi){TL.reset();TLi=0}while(TLi<i)TL.add(TL.DAYS[TLi++]);TL.paint();$("tsl").value=TLi;$("tlb").textContent=new Date(Date.parse($("d0").value)+Math.max(0,TLi-1)*864e5).toLocaleDateString("it",{day:"numeric",month:"long",year:"numeric",timeZone:"UTC"})}
+function tlPlay(rec){if(!TL)return;const N=TL.DAYS.length,st=Math.max(1,Math.ceil(N/(+$("tdur").value*30)));let r=null,ch=[];
+if(rec&&window.MediaRecorder){try{r=new MediaRecorder($("c1").captureStream(30),{mimeType:"video/webm"});r.ondataavailable=e=>ch.push(e.data);r.onstop=()=>{const a=document.createElement("a");a.href=URL.createObjectURL(new Blob(ch,{type:"video/webm"}));a.download="solargrafia_timelapse.webm";a.click()}}catch(e){r=null}}else if(rec){alert("Questo browser non supporta la registrazione video: usa Chrome, Edge o Firefox.");return}
+if(TLi>=N||rec)tlSeek(0);if(r)r.start();TLrun=true;$("tp").textContent="⏸ Pausa";let last=0;
+const f=t=>{if(!TLrun)return;if(t-last>=33){last=t;tlSeek(Math.min(N,TLi+st))}if(TLi<N)TLr=requestAnimationFrame(f);else{TLrun=false;$("tp").textContent="▶ Avvia";if(r)setTimeout(()=>r.stop(),600)}};TLr=requestAnimationFrame(f)}
+const vw={yaw:-.7,pit:.5};$("tr3").oninput=()=>{$("trv").textContent=$("tr3").value+"%";req3d()};$("trv").textContent="45%";
+{const c=$("c3");let dn=null;c.onpointerdown=e=>{dn=[e.clientX,e.clientY];LOW3=true;c.setPointerCapture(e.pointerId)};c.onpointermove=e=>{if(!dn)return;vw.yaw+=(e.clientX-dn[0])*.01;vw.pit=Math.max(-1.5,Math.min(1.5,vw.pit+(e.clientY-dn[1])*.01));dn=[e.clientX,e.clientY];req3d()};c.onpointerup=()=>{dn=null;LOW3=false;req3d()}}
+// Texture del negativo per il modello 3D: copia ridotta del positivo (prima dell'eventuale rotazione), con i colori invertiti.
+// L'orientamento capovolto/specchiato nasce dalla geometria: il pixel (X,Y) del positivo è il punto della carta in (-X,-Y).
+let TEX=null;
+const texKey=()=>JSON.stringify([S,RND,V.D,V.f,V.Hn,V.hh,V.tw,V.Wn,V.off]);
+function grabTex(){try{window.__arGrab&&window.__arGrab()}catch(e){}const c=$("c1");if(!c.width||!c.height)return;const k=Math.min(1,256/Math.max(c.width,c.height)),cv=document.createElement("canvas");cv.width=Math.max(2,Math.round(c.width*k));cv.height=Math.max(2,Math.round(c.height*k));const x=cv.getContext("2d");x.drawImage(c,0,0,cv.width,cv.height);x.globalCompositeOperation="difference";x.fillStyle="#fff";x.fillRect(0,0,cv.width,cv.height);TEX={cv,key:texKey()}}
+let LOW3=false,R3=0;
+function req3d(){if(R3)return;R3=requestAnimationFrame(()=>{R3=0;draw3d()})}
+function draw3d(){
+const c=$("c3"),cx=c.getContext("2d"),CW=c.width,CH=c.height,B=basis(),{D,f,Hn,hh,tw,off}=V,R=D/2,y0=-hh,y1=Hn-hh,faces=[],rims=[],NS=LOW3?24:40,OP=1-(+($("tr3")||{value:45}).value)/100,AB=.12+.6*OP,AP=.35+.6*OP,AQ=.1+.7*OP;
+const W=p=>[p[0]*B.x[0]+p[1]*B.u[0]+p[2]*B.z[0],p[0]*B.x[1]+p[1]*B.u[1]+p[2]*B.z[1],p[0]*B.x[2]+p[1]*B.u[2]+p[2]*B.z[2]];
+const cc=W([0,S==3?0:(y0+y1)/2,S==0?-f/2:S==1?-R/2:S==2?-R:-hh-Hn/2]),ext=Math.max(D,Hn,f,60),k=.5*Math.min(CW,CH)/ext,cp=cos(vw.pit),sp=sin(vw.pit),cy=cos(vw.yaw),sy=sin(vw.yaw);
+const Q=(e,n,u)=>{const e2=e*cy-n*sy,n2=e*sy+n*cy;return[CW/2+e2*k,CH/2-(u*cp+n2*sp)*k,n2*cp-u*sp]};
+const T=p=>{const w=W(p);return Q(w[0]-cc[0],w[1]-cc[1],w[2]-cc[2])};
+const LD=[-.35,-.45,.82];
+const face=(pts,rgb,al,edge)=>{const w=pts.map(W),a=w[0],b=w[1],d=w[2],u=[b[0]-a[0],b[1]-a[1],b[2]-a[2]],v=[d[0]-a[0],d[1]-a[1],d[2]-a[2]],n=[u[1]*v[2]-u[2]*v[1],u[2]*v[0]-u[0]*v[2],u[0]*v[1]-u[1]*v[0]],m=hyp(n[0],n[1],n[2])||1,sh=.42+.58*Math.abs((n[0]*LD[0]+n[1]*LD[1]+n[2]*LD[2])/m),q=pts.map(T);
+ faces.push({q,d:q.reduce((t,x)=>t+x[2],0)/q.length,fill:`rgba(${rgb.map(x=>Math.round(x*sh)).join(",")},${al})`,edge})};
+// superficie cilindrica: P(a,t) -> punto 3D, a = parametro angolare, t = parametro lungo l'asse
+const surf=(P,a0,a1,t0,t1,rgb,al,edge,n=NS)=>{for(let i=0;i<n;i++){const a=a0+(a1-a0)*i/n,b=a0+(a1-a0)*(i+1)/n;face([P(a,t0),P(b,t0),P(b,t1),P(a,t1)],rgb,al,edge)}};
+const disc=(cxy,r,z,rgb,al,edge)=>{const l=[];for(let i=0;i<NS;i++){const a=i/NS*2*PI;l.push([cxy[0]+r*cos(a),cxy[1]+r*sin(a),z])}face(l,rgb,al,edge)};
+const METAL=[150,155,168],PLATE=[120,124,136],PAPER="rgba(238,237,232,",texOK=!!TEX&&TEX.key===texKey(),TV=[-sy*cp,-cy*cp,sp];
+// Faccia di carta: "clip" = contorno 3D, "ref" = 3 punti 3D (origine, +u, +v) con le loro coordinate texture "tc" (frazioni 0..1).
+// La proiezione è ortografica, quindi ogni faccia piana si disegna con una trasformazione affine esatta.
+const paper=(clip,ref,tc,inw)=>{const q=clip.map(T),r=ref.map(T),w=W(inw);faces.push({q,d:q.reduce((t,x)=>t+x[2],0)/q.length,paper:{r,tc,grow:clip.length==4,inner:w[0]*TV[0]+w[1]*TV[1]+w[2]*TV[2]>0}})};
+const Xm=S==0?R:S==1?PI*R/2:S==2?Math.min(PI*R,V.Wn/2):PI*R,fvY=y=>(hh+y)/Hn,fvZ=z=>(hh+Hn+z)/Hn,fuX=x=>(Xm-x)/(2*Xm),fuA=a=>(Xm-R*a)/(2*Xm);
+const strips=(P,a0,a1,t0,t1,n,fu,fv,inwF)=>{for(let i=0;i<n;i++){const a=a0+(a1-a0)*i/n,b=a0+(a1-a0)*(i+1)/n,m=(a+b)/2,p00=P(a,t0),p10=P(b,t0),p11=P(b,t1),p01=P(a,t1);paper([p00,p10,p11,p01],[p00,p10,p01],[[fu(a),fv(t0)],[fu(b),fv(t0)],[fu(a),fv(t1)]],inwF(m))}};
+if(S==0){const cyc=R-hh,z=-f;
+ if(RND){surf((a,zz2)=>[R*cos(a),cyc+R*sin(a),zz2],0,2*PI,0,-f,METAL,AB,0);const ring=[];for(let i=0;i<NS;i++){const a=i/NS*2*PI;ring.push([R*cos(a),cyc+R*sin(a),z])}paper(ring,[[-R,y0,z],[R,y0,z],[-R,y1,z]],[[fuX(-R),0],[fuX(R),0],[fuX(-R),1]],[0,0,1]);disc([0,cyc],R,0,PLATE,AP,"#9a9aa6")}
+ else{const q=[[-R,y0],[R,y0],[R,y1],[-R,y1]];for(let i=0;i<4;i++){const a=q[i],b=q[(i+1)%4];face([[a[0],a[1],0],[b[0],b[1],0],[b[0],b[1],-f],[a[0],a[1],-f]],METAL,AB,0)}paper(q.map(p=>[p[0],p[1],z]),[[-R,y0,z],[R,y0,z],[-R,y1,z]],[[fuX(-R),0],[fuX(R),0],[fuX(-R),1]],[0,0,1]);face(q.map(p=>[p[0],p[1],0]),PLATE,AP,"#9a9aa6")}}
+else if(S==1){const P=(a,y)=>[R*sin(a),y,-tw-R*cos(a)];
+ strips(P,-PI/2,PI/2,y0,y1,32,fuA,y=>fvY(y),m=>[-sin(m),0,cos(m)]);surf((a,y)=>[(R+.8)*sin(a),y,-tw-(R+.8)*cos(a)],-PI/2,PI/2,y0,y1,METAL,AB,0,32);
+ face([[-R,y0,0],[R,y0,0],[R,y1,0],[-R,y1,0]],PLATE,AP,"#9a9aa6");face([[-R,y0,0],[R,y0,0],[R,y0,-tw],[-R,y0,-tw]],METAL,AP,0);face([[-R,y1,0],[R,y1,0],[R,y1,-tw],[-R,y1,-tw]],METAL,AP,0)}
+else if(S==2){const am=Math.min(PI,V.Wn/(2*R)),P=(a,y)=>[R*sin(a),y,-R-R*cos(a)];
+ surf(P,-PI,PI,y0,y1,METAL,AB,0,NS);strips((a,y)=>[(R-.4)*sin(a),y,-R-(R-.4)*cos(a)],-am,am,y0,y1,Math.max(12,Math.round(NS*am/PI*1.5)),fuA,y=>fvY(y),m=>[-sin(m),0,cos(m)]);
+ const cap=y=>{const l=[];for(let i=0;i<NS;i++){const a=i/NS*2*PI;l.push([R*sin(a),y,-R-R*cos(a)])}face(l,PLATE,AP*.8,"#9a9aa6")};cap(y0);cap(y1)}
+else{strips((a,z)=>[R*cos(a),R*sin(a),z],-PI/2,3*PI/2,-hh,-hh-Hn,NS,a=>(a+PI/2)/(2*PI),z=>fvZ(z),m=>[-cos(m),-sin(m),0]);surf((a,z)=>[R*cos(a),R*sin(a),z],0,2*PI,0,-hh,METAL,AB,0);disc([0,0],R,0,PLATE,AP,"#9a9aa6");disc([0,0],R,-hh-Hn,PLATE,AP*.7,0)}
+// sfondo: orizzonte con punti cardinali
+cx.fillStyle="#0b0b0f";cx.fillRect(0,0,CW,CH);
+const rr=ext*.7,zz=-ext*.55,ring=[];for(let i=0;i<=60;i++){const a=i/30*PI;ring.push(Q(rr*sin(a),rr*cos(a),zz))}
+cx.beginPath();ring.forEach((q,i)=>i?cx.lineTo(q[0],q[1]):cx.moveTo(q[0],q[1]));cx.fillStyle="rgba(70,80,60,.18)";cx.fill();cx.strokeStyle="#445";cx.lineWidth=1;cx.stroke();
+cx.font="12px sans-serif";[["N",0,1],["E",1,0],["S",0,-1],["O",-1,0]].forEach(([t,e,n])=>{const q=Q(e*rr*1.12,n*rr*1.12,zz);cx.fillStyle=t=="N"?"#ff8070":"#aab";cx.font=(t=="N"?"bold ":"")+"12px sans-serif";cx.fillText(t,q[0]-4,q[1]+4)});
+// zenit / verticale locale
+{const a=Q(0,0,zz),b=Q(0,0,zz+ext*.35);cx.strokeStyle="#556";cx.setLineDash([3,3]);cx.beginPath();cx.moveTo(a[0],a[1]);cx.lineTo(b[0],b[1]);cx.stroke();cx.setLineDash([]);cx.fillStyle="#778";cx.fillText("zenit",b[0]+4,b[1]+2)}
+faces.sort((p,q)=>q.d-p.d).forEach(F=>{cx.beginPath();F.q.forEach((q,i)=>i?cx.lineTo(q[0],q[1]):cx.moveTo(q[0],q[1]));cx.closePath();
+ if(F.paper){const P=F.paper;if(P.inner&&texOK){if(P.grow){const q=F.q.map(v=>v.slice()),ux=q[1][0]-q[0][0],uy=q[1][1]-q[0][1],L=Math.hypot(ux,uy)||1;[1,2].forEach(i=>{q[i][0]+=.8*ux/L;q[i][1]+=.8*uy/L});cx.beginPath();q.forEach((v,i)=>i?cx.lineTo(v[0],v[1]):cx.moveTo(v[0],v[1]));cx.closePath()}const t=TEX.cv,s0=[P.tc[0][0]*t.width,P.tc[0][1]*t.height],s1=[P.tc[1][0]*t.width,P.tc[1][1]*t.height],s2=[P.tc[2][0]*t.width,P.tc[2][1]*t.height],d0=P.r[0],d1=P.r[1],d2=P.r[2],
+  dx1=s1[0]-s0[0],dy1=s1[1]-s0[1],dx2=s2[0]-s0[0],dy2=s2[1]-s0[1],det=dx1*dy2-dx2*dy1;
+  if(Math.abs(det)>1e-9){const ex1=d1[0]-d0[0],ey1=d1[1]-d0[1],ex2=d2[0]-d0[0],ey2=d2[1]-d0[1],a=(ex1*dy2-ex2*dy1)/det,c=(dx1*ex2-dx2*ex1)/det,b=(ey1*dy2-ey2*dy1)/det,d=(dx1*ey2-dx2*ey1)/det;
+   const s3=[s1[0]+s2[0]-s0[0],s1[1]+s2[1]-s0[1]],bx0=Math.max(0,Math.floor(Math.min(s0[0],s1[0],s2[0],s3[0])-1)),by0=Math.max(0,Math.floor(Math.min(s0[1],s1[1],s2[1],s3[1])-1)),bx1=Math.min(t.width,Math.ceil(Math.max(s0[0],s1[0],s2[0],s3[0])+1)),by1=Math.min(t.height,Math.ceil(Math.max(s0[1],s1[1],s2[1],s3[1])+1));
+   cx.save();cx.clip();cx.transform(a,b,c,d,d0[0]-a*s0[0]-c*s0[1],d0[1]-b*s0[0]-d*s0[1]);if(bx1>bx0&&by1>by0)cx.drawImage(t,bx0,by0,bx1-bx0,by1-by0,bx0,by0,bx1-bx0,by1-by0);cx.restore()}}
+  else{cx.fillStyle=PAPER+(P.inner?".95":AQ.toFixed(2))+")";cx.fill()}return}
+ cx.fillStyle=F.fill;cx.fill();if(F.edge){cx.strokeStyle=F.edge;cx.lineWidth=1;cx.stroke()}});
+// foro (disco rosso sul punto di ingresso) e asse di vista con freccia
+const h=[S==3?off:0,0,0],rh=Math.max(.7,Math.min(2.5,D*.04)),hole=[];for(let i=0;i<=24;i++){const a=i/24*2*PI;hole.push(T([h[0]+rh*cos(a),h[1]+rh*sin(a),0]))}
+cx.beginPath();hole.forEach((q,i)=>i?cx.lineTo(q[0],q[1]):cx.moveTo(q[0],q[1]));cx.fillStyle="#ff4040";cx.fill();
+const A=T(h),Z=T([h[0],h[1],ext*.5]);cx.strokeStyle="#ff4040";cx.lineWidth=2;cx.beginPath();cx.moveTo(A[0],A[1]);cx.lineTo(Z[0],Z[1]);cx.stroke();
+{const dx=Z[0]-A[0],dy=Z[1]-A[1],L=hyp(dx,dy)||1,ux=dx/L,uy=dy/L;cx.beginPath();cx.moveTo(Z[0],Z[1]);cx.lineTo(Z[0]-9*ux+4*uy,Z[1]-9*uy-4*ux);cx.lineTo(Z[0]-9*ux-4*uy,Z[1]-9*uy+4*ux);cx.closePath();cx.fillStyle="#ff4040";cx.fill()}
+cx.fillStyle="#ff9080";cx.font="12px sans-serif";cx.fillText("foro / asse",A[0]+8,A[1]-8)}
+function rotCv(c,k){const w=c.width,h=c.height,t=document.createElement("canvas");t.width=w;t.height=h;t.getContext("2d").drawImage(c,0,0);c.width=h;c.height=w;const x=c.getContext("2d");x.save();if(k>0){x.translate(0,w);x.rotate(-PI/2)}else{x.translate(h,0);x.rotate(PI/2)}x.drawImage(t,0,0);x.restore()}
+function applyRot(){const k=V.rl>=45?1:V.rl<=-45?-1:0;if(k){rotCv($("c1"),k);rotCv($("c2"),k)}$("rt").textContent=k?`Fotocamera orizzontale: immagine ruotata di 90° ${k>0?"in senso antiorario":"in senso orario"} per tenere il cielo in alto.`:""}
+function run(){draw3d();setTimeout(()=>{const t0=performance.now();if(!validDateRange()){TL=null;TLi=0;$("tsl").max=0;$("tsl").value=0;$("tlb").textContent="";$("info").textContent="";$("st").textContent="Periodo non valido: inserisci due date valide, con la fine successiva all’inizio e un intervallo massimo di 10 anni.";$("nt").textContent="";return}try{raw=false;const G=geom(),B=basis();MD=mapCalc(G,B);annual2(G,B);vertTime(G,B);drawMap();grabTex();applyRot();draw3d();$("info").textContent=extra();$("st").textContent=`Calcolato in ${Math.round(performance.now()-t0)} ms`;$("nt").textContent=NT}catch(err){console.error("Errore nel simulatore:",err);$("st").textContent="Errore di calcolo: "+(err&&err.message?err.message:"controlla i parametri")}},20)}
+const fmtT=T=>{const m=Math.round(T*60);return Math.floor(m/60)+":"+String(m%60).padStart(2,"0")},fmtHMS=T=>{const q=Math.round(T*3600);return Math.floor(q/3600)+":"+String(Math.floor(q%3600/60)).padStart(2,"0")+":"+String(q%60).padStart(2,"0")};
+const anc=$("anc");function anSty(b){const on=AN.has(+b.dataset.t);b.style.borderColor=on?"var(--ac)":"var(--bd)";b.style.fontWeight=on?700:400}
+function anBtns(step){[...AN].forEach(T=>{if(Math.round(T*60)%step)AN.delete(T)});anc.innerHTML="";for(let m=360;m<=1080;m+=step){const T=m/60,b=document.createElement("button");b.type="button";b.textContent=fmtT(T);b.dataset.t=T;b.onclick=()=>{AN.has(T)?AN.delete(T):AN.add(T);anSty(b);TL&&TL.paint()};anSty(b);anc.append(b)}}
+$("ans").onchange=e=>{anBtns(+e.target.value);TL&&TL.paint()};$("ana").onclick=()=>{[...anc.children].forEach(b=>{AN.add(+b.dataset.t);anSty(b)});TL&&TL.paint()};$("ann").onclick=()=>{AN.clear();[...anc.children].forEach(anSty);TL&&TL.paint()};anBtns(60);
+// minuto esatto in cui l'analemma è verticale: i due estremi (solstizio d'estate e d'inverno del periodo) hanno la stessa x nell'immagine
+function vertTime(G,B){const e=$("vt");if(!e)return;const ds=DYS.map(dN);if(!ds.length){e.textContent="";return}let a=ds[0],b=ds[0];ds.forEach(N=>{if(DCL(N)>DCL(a))a=N;if(DCL(N)<DCL(b))b=N});
+if(DCL(a)-DCL(b)<.7){e.textContent="Analemma verticale: serve un periodo che comprenda sia il solstizio d’estate sia quello d’inverno.";return}
+const k=V.rl>=45||V.rl<=-45?1:0,f=T=>{const p=sunPix(a,T,B,G),q=sunPix(b,T,B,G);return p&&q?p[k]-q[k]:NaN};
+let best=null,mn=null,pT=0,pf=NaN;for(let s=-1440;s<=1440;s++){const T=12+s/360,v=f(T);if(!isNaN(v)&&(!mn||Math.abs(v)<mn[1]))mn=[T,Math.abs(v)];if(!isNaN(pf)&&!isNaN(v)&&pf*v<=0&&(!best||Math.abs(T-12)<Math.abs(best[1]-12)))best=[pT,T];pT=T;pf=v}
+if(!best){e.textContent=mn?`Analemma verticale: con questa camera non diventa mai perfettamente verticale; la minima inclinazione è alle ${fmtHMS(mn[0])} (ora solare media).`:"Analemma verticale: il sole non cade sulla carta a quest’ora.";return}
+let lo=best[0],hi=best[1],fl=f(lo);for(let i=0;i<45;i++){const c=(lo+hi)/2,fc=f(c);if(fl*fc<=0)hi=c;else{lo=c;fl=fc}}
+const T=(lo+hi)/2;let t12="";if(!k){const p=sunPix(a,12,B,G),q=sunPix(b,12,B,G);if(p&&q){const ang=Math.atan2(p[0]-q[0],q[1]-p[1])/rad;t12=` A mezzogiorno solare (12:00:00) è inclinato di ${fm(Math.abs(ang),2)}° (la parte alta pende a ${ang>0?"destra":"sinistra"}).`}}
+e.textContent=`Analemma verticale alle ${fmtHMS(T)} di ora solare media del luogo (i due solstizi sono allineati in verticale nell’immagine).${t12}`}
+$("adt").onchange=e=>{ADT=e.target.checked;TL&&TL.paint()};$("tsh").onchange=e=>{SHT=e.target.checked;TL&&TL.paint()};$("tsl").oninput=e=>{TLrun=false;cancelAnimationFrame(TLr);$("tp").textContent="▶ Avvia";tlSeek(+e.target.value)};
+$("tp").onclick=()=>{if(TLrun){TLrun=false;cancelAnimationFrame(TLr);$("tp").textContent="▶ Avvia"}else tlPlay(false)};$("tr").onclick=()=>tlPlay(true);
+window.__arBoot=true;   /* il calcolo lo avvia l'AR */
+<\/script>
+<script>
+// Traduzione dei soli testi dell'interfaccia (il codice non cambia). Le scritte si confrontano con il testo italiano.
+const I18N={"Simulatore solargrafia": {"it": "Simulatore solargrafia", "en": "Pinhole Solargraphy Simulator", "es": "Simulador de solargrafía", "fr": "Simulateur de solargraphie", "de": "Solargrafie-Simulator"}, "Forma": {"it": "Forma", "en": "Shape", "es": "Forma", "fr": "Forme", "de": "Form"}, "Piatta (carta rettangolare)": {"it": "Piatta (carta rettangolare)", "en": "Flat (rectangular paper)", "es": "Plana (papel rectangular)", "fr": "Plate (papier rectangulaire)", "de": "Flach (rechteckiges Papier)"}, "Piatta (carta rotonda)": {"it": "Piatta (carta rotonda)", "en": "Flat (round paper)", "es": "Plana (papel redondo)", "fr": "Plate (papier rond)", "de": "Flach (rundes Papier)"}, "Semicilindrica": {"it": "Semicilindrica", "en": "Half-cylinder", "es": "Semicilíndrica", "fr": "Demi-cylindre", "de": "Halbzylinder"}, "Cilindrica (foro sulla parete)": {"it": "Cilindrica (foro sulla parete)", "en": "Cylindrical (hole in the wall)", "es": "Cilíndrica (agujero en la pared)", "fr": "Cylindrique (trou dans la paroi)", "de": "Zylindrisch (Loch in der Wand)"}, "Anamorfica (foro sull’asse)": {"it": "Anamorfica (foro sull’asse)", "en": "Anamorphic (hole on the axis)", "es": "Anamórfica (agujero en el eje)", "fr": "Anamorphique (trou sur l’axe)", "de": "Anamorph (Loch auf der Achse)"}, "Periodo di esposizione": {"it": "Periodo di esposizione", "en": "Exposure period", "es": "Periodo de exposición", "fr": "Période d’exposition", "de": "Belichtungszeitraum"}, "Preset": {"it": "Preset", "en": "Preset", "es": "Preajuste", "fr": "Préréglage", "de": "Vorgabe"}, "Anno intero (21 dic → 21 dic)": {"it": "Anno intero (21 dic → 21 dic)", "en": "Full year (Dec 21 → Dec 21)", "es": "Año completo (21 dic → 21 dic)", "fr": "Année entière (21 déc → 21 déc)", "de": "Ganzes Jahr (21. Dez → 21. Dez)"}, "6 mesi: solstizio d’inverno → d’estate": {"it": "6 mesi: solstizio d’inverno → d’estate", "en": "6 months: winter → summer solstice", "es": "6 meses: solsticio de invierno → verano", "fr": "6 mois : solstice d’hiver → d’été", "de": "6 Monate: Wintersonnenwende → Sommersonnenwende"}, "6 mesi: solstizio d’estate → d’inverno": {"it": "6 mesi: solstizio d’estate → d’inverno", "en": "6 months: summer → winter solstice", "es": "6 meses: solsticio de verano → invierno", "fr": "6 mois : solstice d’été → d’hiver", "de": "6 Monate: Sommersonnenwende → Wintersonnenwende"}, "Personalizzato": {"it": "Personalizzato", "en": "Custom", "es": "Personalizado", "fr": "Personnalisé", "de": "Benutzerdefiniert"}, "Inizio esposizione": {"it": "Inizio esposizione", "en": "Exposure start", "es": "Inicio de exposición", "fr": "Début de l’exposition", "de": "Belichtungsbeginn"}, "Fine esposizione": {"it": "Fine esposizione", "en": "Exposure end", "es": "Fin de exposición", "fr": "Fin de l’exposition", "de": "Belichtungsende"}, "Annata (seme delle nuvole)": {"it": "Annata (seme delle nuvole)", "en": "Year (cloud seed)", "es": "Año (semilla de las nubes)", "fr": "Année (graine des nuages)", "de": "Jahrgang (Wolken-Saat)"}, "Nuova annata": {"it": "Nuova annata", "en": "New year", "es": "Nuevo año", "fr": "Nouvelle année", "de": "Neuer Jahrgang"}, "Luogo": {"it": "Luogo", "en": "Location", "es": "Lugar", "fr": "Lieu", "de": "Ort"}, "Personalizzata": {"it": "Personalizzata", "en": "Custom", "es": "Personalizada", "fr": "Personnalisé", "de": "Benutzerdefiniert"}, "Latitudine (°, positiva a nord, negativa a sud)": {"it": "Latitudine (°, positiva a nord, negativa a sud)", "en": "Latitude (°, positive north, negative south)", "es": "Latitud (°, positiva al norte, negativa al sur)", "fr": "Latitude (°, positive au nord, négative au sud)", "de": "Breite (°, positiv nach Norden, negativ nach Süden)"}, "Dati della fotocamera": {"it": "Dati della fotocamera", "en": "Camera data", "es": "Datos de la cámara", "fr": "Données de l’appareil", "de": "Kameradaten"}, "Diametro interno della lattina (mm)": {"it": "Diametro interno della lattina (mm)", "en": "Inner can diameter (mm)", "es": "Diámetro interior de la lata (mm)", "fr": "Diamètre intérieur de la boîte (mm)", "de": "Innendurchmesser der Dose (mm)"}, "Profondità (solo piatta, mm)": {"it": "Profondità (solo piatta, mm)", "en": "Depth (flat only, mm)", "es": "Profundidad (solo plana, mm)", "fr": "Profondeur (plate seulement, mm)", "de": "Tiefe (nur flach, mm)"}, "Altezza negativo (mm)": {"it": "Altezza negativo (mm)", "en": "Negative height (mm)", "es": "Altura del negativo (mm)", "fr": "Hauteur du négatif (mm)", "de": "Negativhöhe (mm)"}, "Larghezza negativo avvolto (mm)": {"it": "Larghezza negativo avvolto (mm)", "en": "Wrapped negative width (mm)", "es": "Ancho del negativo enrollado (mm)", "fr": "Largeur du négatif enroulé (mm)", "de": "Breite des aufgerollten Negativs (mm)"}, "Calcola larghezza (140 mm con diametro 52 mm)": {"it": "Calcola larghezza (140 mm con diametro 52 mm)", "en": "Calculate width (140 mm with 52 mm diameter)", "es": "Calcular ancho (140 mm con diámetro 52 mm)", "fr": "Calculer la largeur (140 mm pour un diamètre de 52 mm)", "de": "Breite berechnen (140 mm bei 52 mm Durchmesser)"}, "Spessore parete della camera (mm; non è la lamiera)": {"it": "Spessore parete della camera (mm; non è la lamiera)", "en": "Camera wall thickness (mm; not the sheet metal)", "es": "Grosor de la pared de la cámara (mm; no la chapa)", "fr": "Épaisseur de la paroi (mm ; pas la tôle)", "de": "Wandstärke der Kamera (mm; nicht das Blech)"}, "Raggio svasatura interna (mm, 0 = nessun limite)": {"it": "Raggio svasatura interna (mm, 0 = nessun limite)", "en": "Inner chamfer radius (mm, 0 = no limit)", "es": "Radio del avellanado interior (mm, 0 = sin límite)", "fr": "Rayon du chanfrein intérieur (mm, 0 = aucune limite)", "de": "Innenfase-Radius (mm, 0 = keine Grenze)"}, "Diametro del foro / pinhole (mm)": {"it": "Diametro del foro / pinhole (mm)", "en": "Pinhole diameter (mm)", "es": "Diámetro del agujero / pinhole (mm)", "fr": "Diamètre du trou / sténopé (mm)", "de": "Lochdurchmesser / Pinhole (mm)"}, "Calcola il foro automaticamente dalla focale": {"it": "Calcola il foro automaticamente dalla focale", "en": "Calculate the hole automatically from the focal length", "es": "Calcular el agujero automáticamente según la focal", "fr": "Calculer le trou automatiquement à partir de la focale", "de": "Loch automatisch aus der Brennweite berechnen"}, "Spessore della lamiera del foro (mm)": {"it": "Spessore della lamiera del foro (mm)", "en": "Hole sheet thickness (mm)", "es": "Grosor de la chapa del agujero (mm)", "fr": "Épaisseur de la tôle du trou (mm)", "de": "Blechstärke des Lochs (mm)"}, "Posizione del foro": {"it": "Posizione del foro", "en": "Hole position", "es": "Posición del agujero", "fr": "Position du trou", "de": "Lochposition"}, "Centro": {"it": "Centro", "en": "Center", "es": "Centro", "fr": "Centre", "de": "Mitte"}, "⅓ superiore": {"it": "⅓ superiore", "en": "Upper ⅓", "es": "⅓ superior", "fr": "⅓ supérieur", "de": "oberes ⅓"}, "¼ superiore": {"it": "¼ superiore", "en": "Upper ¼", "es": "¼ superior", "fr": "¼ supérieur", "de": "oberes ¼"}, "Solstizio sul bordo": {"it": "Solstizio sul bordo", "en": "Solstice on the edge", "es": "Solsticio en el borde", "fr": "Solstice au bord", "de": "Sonnenwende am Rand"}, "Solstizio + 5 mm": {"it": "Solstizio + 5 mm", "en": "Solstice + 5 mm", "es": "Solsticio + 5 mm", "fr": "Solstice + 5 mm", "de": "Sonnenwende + 5 mm"}, "Distanza del foro dal bordo inferiore (mm)": {"it": "Distanza del foro dal bordo inferiore (mm)", "en": "Hole distance from the lower edge (mm)", "es": "Distancia del agujero al borde inferior (mm)", "fr": "Distance du trou du bord inférieur (mm)", "de": "Abstand des Lochs von der Unterkante (mm)"}, "Foro fuori asse (anamorfica, mm)": {"it": "Foro fuori asse (anamorfica, mm)", "en": "Hole off-axis (anamorphic, mm)", "es": "Agujero fuera de eje (anamórfica, mm)", "fr": "Trou hors axe (anamorphique, mm)", "de": "Loch außerhalb der Achse (anamorph, mm)"}, "Orientamento": {"it": "Orientamento", "en": "Orientation", "es": "Orientación", "fr": "Orientation", "de": "Ausrichtung"}, "Direzione del foro (clic sul punto cardinale)": {"it": "Direzione del foro (clic sul punto cardinale)", "en": "Hole direction (click a compass point)", "es": "Dirección del agujero (clic en el punto cardinal)", "fr": "Direction du trou (cliquer sur le point cardinal)", "de": "Lochrichtung (Himmelsrichtung anklicken)"}, "Inclinazione asse (° interi; 0 orizz., 90 zenit)": {"it": "Inclinazione asse (° interi; 0 orizz., 90 zenit)", "en": "Axis tilt (whole °; 0 horizontal, 90 zenith)", "es": "Inclinación del eje (° enteros; 0 horiz., 90 cénit)", "fr": "Inclinaison de l’axe (° entiers ; 0 horiz., 90 zénith)", "de": "Achsneigung (ganze °; 0 waagerecht, 90 Zenit)"}, "Rotazione attorno all’asse (°)": {"it": "Rotazione attorno all’asse (°)", "en": "Rotation around the axis (°)", "es": "Rotación alrededor del eje (°)", "fr": "Rotation autour de l’axe (°)", "de": "Drehung um die Achse (°)"}, "Azzera rotazione (0°)": {"it": "Azzera rotazione (0°)", "en": "Reset rotation (0°)", "es": "Restablecer rotación (0°)", "fr": "Remettre la rotation à 0°", "de": "Drehung zurücksetzen (0°)"}, "Orizzontale ↺ (+90°)": {"it": "Orizzontale ↺ (+90°)", "en": "Landscape ↺ (+90°)", "es": "Horizontal ↺ (+90°)", "fr": "Paysage ↺ (+90°)", "de": "Querformat ↺ (+90°)"}, "Orizzontale ↻ (−90°)": {"it": "Orizzontale ↻ (−90°)", "en": "Landscape ↻ (−90°)", "es": "Horizontal ↻ (−90°)", "fr": "Paysage ↻ (−90°)", "de": "Querformat ↻ (−90°)"}, "Rappresentazione": {"it": "Rappresentazione", "en": "Display", "es": "Representación", "fr": "Affichage", "de": "Darstellung"}, "Altezza massima edifici all’orizzonte (°)": {"it": "Altezza massima edifici all’orizzonte (°)", "en": "Maximum height of buildings on the horizon (°)", "es": "Altura máxima de edificios en el horizonte (°)", "fr": "Hauteur maximale des bâtiments à l’horizon (°)", "de": "Maximale Gebäudehöhe am Horizont (°)"}, "Luminosità di cielo e paesaggio (il sole non cambia)": {"it": "Luminosità di cielo e paesaggio (il sole non cambia)", "en": "Sky and landscape brightness (the sun does not change)", "es": "Brillo del cielo y del paisaje (el sol no cambia)", "fr": "Luminosité du ciel et du paysage (le soleil ne change pas)", "de": "Helligkeit von Himmel und Landschaft (die Sonne bleibt gleich)"}, "Esposizione della carta (1 = normale)": {"it": "Esposizione della carta (1 = normale)", "en": "Paper exposure (1 = normal)", "es": "Exposición del papel (1 = normal)", "fr": "Exposition du papier (1 = normal)", "de": "Papierbelichtung (1 = normal)"}, "Compressione delle alte luci (0 = minima; più alto = saturazione anticipata)": {"it": "Compressione delle alte luci (0 = minima; più alto = saturazione anticipata)", "en": "Highlight compression (0 = minimal; higher = earlier saturation)", "es": "Compresión de las altas luces (0 = mínima; más alto = saturación antes)", "fr": "Compression des hautes lumières (0 = minimale ; plus haut = saturation plus tôt)", "de": "Lichterkompression (0 = minimal; höher = frühere Sättigung)"}, "Vignettatura del foro (0 = nessuna, 1 = fisica)": {"it": "Vignettatura del foro (0 = nessuna, 1 = fisica)", "en": "Hole vignetting (0 = none, 1 = physical)", "es": "Viñeteado del agujero (0 = ninguno, 1 = físico)", "fr": "Vignettage du trou (0 = aucun, 1 = physique)", "de": "Lochvignettierung (0 = keine, 1 = physikalisch)"}, "Mostra il negativo": {"it": "Mostra il negativo", "en": "Show negative", "es": "Mostrar el negativo", "fr": "Afficher le négatif", "de": "Negativ anzeigen"}, "Mostra il positivo": {"it": "Mostra il positivo", "en": "Show positive", "es": "Mostrar el positivo", "fr": "Afficher le positif", "de": "Positiv anzeigen"}, "Analemmi": {"it": "Analemmi", "en": "Analemmas", "es": "Analemas", "fr": "Analemmes", "de": "Analemmata"}, "Passo:": {"it": "Passo:", "en": "Step:", "es": "Paso:", "fr": "Pas :", "de": "Schritt:"}, "ogni ora": {"it": "ogni ora", "en": "every hour", "es": "cada hora", "fr": "chaque heure", "de": "stündlich"}, "ogni 30 minuti": {"it": "ogni 30 minuti", "en": "every 30 minutes", "es": "cada 30 minutos", "fr": "toutes les 30 minutes", "de": "alle 30 Minuten"}, "ogni 15 minuti": {"it": "ogni 15 minuti", "en": "every 15 minutes", "es": "cada 15 minutos", "fr": "toutes les 15 minutes", "de": "alle 15 Minuten"}, "Tutti": {"it": "Tutti", "en": "All", "es": "Todos", "fr": "Tous", "de": "Alle"}, "Nessuno": {"it": "Nessuno", "en": "None", "es": "Ninguno", "fr": "Aucun", "de": "Keine"}, "Scrivi la data sui punti (ogni 2 settimane)": {"it": "Scrivi la data sui punti (ogni 2 settimane)", "en": "Write the date on the points (every 2 weeks)", "es": "Escribir la fecha en los puntos (cada 2 semanas)", "fr": "Écrire la date sur les points (toutes les 2 semaines)", "de": "Datum an die Punkte schreiben (alle 2 Wochen)"}, "Time-lapse": {"it": "Time-lapse", "en": "Time-lapse", "es": "Timelapse", "fr": "Time-lapse", "de": "Zeitraffer"}, "▶ Avvia": {"it": "▶ Avvia", "en": "▶ Start", "es": "▶ Iniciar", "fr": "▶ Lancer", "de": "▶ Start"}, "⏸ Pausa": {"it": "⏸ Pausa", "en": "⏸ Pause", "es": "⏸ Pausa", "fr": "⏸ Pause", "de": "⏸ Pause"}, "⏺ Registra video": {"it": "⏺ Registra video", "en": "⏺ Record video", "es": "⏺ Grabar vídeo", "fr": "⏺ Enregistrer la vidéo", "de": "⏺ Video aufnehmen"}, "Mostra traccia solare": {"it": "Mostra traccia solare", "en": "Show solar track", "es": "Mostrar trayectoria solar", "fr": "Afficher la trace solaire", "de": "Sonnenspur anzeigen"}, "Solargrafia simulata (positivo)": {"it": "Solargrafia simulata (positivo)", "en": "Simulated solargraph (positive)", "es": "Solargrafía simulada (positivo)", "fr": "Solargraphie simulée (positif)", "de": "Simulierte Solargrafie (Positiv)"}, "Modello 3D": {"it": "Modello 3D", "en": "3D model", "es": "Modelo 3D", "fr": "Modèle 3D", "de": "3D-Modell"}, "Trasparenza del modello": {"it": "Trasparenza del modello", "en": "Model transparency", "es": "Transparencia del modelo", "fr": "Transparence du modèle", "de": "Transparenz des Modells"}, "Risultati": {"it": "Risultati", "en": "Results", "es": "Resultados", "fr": "Résultats", "de": "Ergebnisse"}, "Doppio clic per riportare a 0°": {"it": "Doppio clic per riportare a 0°", "en": "Double-click to reset to 0°", "es": "Doble clic para volver a 0°", "fr": "Double-clic pour revenir à 0°", "de": "Doppelklick für 0°"}, "Riporta la rotazione attorno all’asse a 0° (fotocamera dritta)": {"it": "Riporta la rotazione attorno all’asse a 0° (fotocamera dritta)", "en": "Reset rotation around the axis to 0° (camera upright)", "es": "Devuelve la rotación alrededor del eje a 0° (cámara recta)", "fr": "Remet la rotation autour de l’axe à 0° (appareil droit)", "de": "Drehung um die Achse auf 0° zurücksetzen (Kamera gerade)"}, "Mette la fotocamera in orizzontale; l’immagine viene ruotata per tenere il cielo in alto": {"it": "Mette la fotocamera in orizzontale; l’immagine viene ruotata per tenere il cielo in alto", "en": "Sets the camera to landscape; the image is rotated to keep the sky on top", "es": "Pone la cámara en horizontal; la imagen gira para mantener el cielo arriba", "fr": "Met l’appareil en paysage ; l’image tourne pour garder le ciel en haut", "de": "Kamera ins Querformat; das Bild wird gedreht, damit der Himmel oben bleibt"}, "Sole alla latitudine 40,0° N (Casarano), tutto l’anno solare.": {"it": "Sole alla latitudine 40,0° N (Casarano), tutto l’anno solare.", "en": "Sun at latitude 40.0° N (Casarano), whole solar year.", "es": "Sol a la latitud 40,0° N (Casarano), todo el año solar.", "fr": "Soleil à la latitude 40,0° N (Casarano), toute l’année solaire.", "de": "Sonne auf Breite 40,0° N (Casarano), das ganze Sonnenjahr."}, "Calcolato in 1504 ms": {"it": "Calcolato in 1504 ms", "en": "Calculated in 1504 ms", "es": "Calculado en 1504 ms", "fr": "Calculé en 1504 ms", "de": "Berechnet in 1504 ms"}, "Modello: direzione della luce per ogni pixel, sole ogni minuto, estinzione atmosferica, rifrazione, nuvole stagionali casuali, trasmissione della lamiera e diffrazione. Paesaggio procedurale.": {"it": "Modello: direzione della luce per ogni pixel, sole ogni minuto, estinzione atmosferica, rifrazione, nuvole stagionali casuali, trasmissione della lamiera e diffrazione. Paesaggio procedurale.", "en": "Model: light direction for each pixel, sun every minute, atmospheric extinction, refraction, random seasonal clouds, sheet transmission and diffraction. Procedural landscape.", "es": "Modelo: dirección de la luz por píxel, sol cada minuto, extinción atmosférica, refracción, nubes estacionales aleatorias, transmisión de la chapa y difracción. Paisaje procedural.", "fr": "Modèle : direction de la lumière pour chaque pixel, soleil chaque minute, extinction atmosphérique, réfraction, nuages saisonniers aléatoires, transmission de la tôle et diffraction. Paysage procédural.", "de": "Modell: Lichtrichtung je Pixel, Sonne jede Minute, atmosphärische Extinktion, Brechung, zufällige Jahreszeit-Wolken, Blechdurchlässigkeit und Beugung. Prozedurale Landschaft."}, "Positivo simulato dopo scansione. Il foro e la larghezza del negativo si calcolano automaticamente in base alla geometria della camera, finché lasci attivi gli automatismi. Il cielo e le nuvole usano un profilo climatico indicativo automatico in base alla latitudine; non è una previsione meteorologica locale. Cambiando annata cambia la sequenza sintetica delle nuvole. Rotazione a 90°: alto in alto, destra a destra.": {"it": "Positivo simulato dopo scansione. Il foro e la larghezza del negativo si calcolano automaticamente in base alla geometria della camera, finché lasci attivi gli automatismi. Il cielo e le nuvole usano un profilo climatico indicativo automatico in base alla latitudine; non è una previsione meteorologica locale. Cambiando annata cambia la sequenza sintetica delle nuvole. Rotazione a 90°: alto in alto, destra a destra.", "en": "Simulated positive after scanning. The hole and negative width are calculated automatically from the camera geometry while the automatic options stay on. Sky and clouds use an indicative climate profile based on latitude; this is not a local weather forecast. Changing the year changes the synthetic cloud sequence. 90° rotation: top stays on top, right stays on right.", "es": "Positivo simulado tras el escaneo. El agujero y el ancho del negativo se calculan automáticamente según la geometría de la cámara, mientras las opciones automáticas estén activas. El cielo y las nubes usan un perfil climático orientativo según la latitud; no es una previsión meteorológica local. Cambiar el año cambia la secuencia sintética de nubes. Rotación de 90°: arriba sigue arriba, derecha sigue derecha.", "fr": "Positif simulé après numérisation. Le trou et la largeur du négatif sont calculés automatiquement selon la géométrie de l’appareil, tant que les automatismes sont actifs. Le ciel et les nuages utilisent un profil climatique indicatif selon la latitude ; ce n’est pas une prévision météo locale. Changer d’année change la séquence synthétique des nuages. Rotation de 90° : le haut reste en haut, la droite reste à droite.", "de": "Simuliertes Positiv nach dem Scannen. Loch und Negativbreite werden automatisch aus der Kamerageometrie berechnet, solange die Automatik aktiv ist. Himmel und Wolken folgen einem indikativen Klimaprofil nach Breitengrad; das ist keine lokale Wettervorhersage. Ein anderer Jahrgang ändert die synthetische Wolkenfolge. 90°-Drehung: oben bleibt oben, rechts bleibt rechts."}, "Trascina per ruotare. Carta bianca con il negativo sulla faccia interna (colori invertiti, capovolto e specchiato come sulla carta vera); grigio: corpo della camera; rosso: foro e asse di vista; anello: orizzonte con N, E, S, O.": {"it": "Trascina per ruotare. Carta bianca con il negativo sulla faccia interna (colori invertiti, capovolto e specchiato come sulla carta vera); grigio: corpo della camera; rosso: foro e asse di vista; anello: orizzonte con N, E, S, O.", "en": "Drag to rotate. White paper with the negative on the inside (colors inverted, flipped and mirrored like real paper); grey: camera body; red: hole and viewing axis; ring: horizon with N, E, S, W.", "es": "Arrastra para girar. Papel blanco con el negativo en la cara interna (colores invertidos, volteado y especular como el papel real); gris: cuerpo de la cámara; rojo: agujero y eje de visión; anillo: horizonte con N, E, S, O.", "fr": "Faites glisser pour tourner. Papier blanc avec le négatif sur la face interne (couleurs inversées, retourné et miroir comme le vrai papier) ; gris : corps de l’appareil ; rouge : trou et axe de visée ; anneau : horizon avec N, E, O, S.", "de": "Ziehen zum Drehen. Weißes Papier mit dem Negativ auf der Innenseite (Farben invertiert, gespiegelt und gedreht wie das echte Papier); grau: Kameragehäuse; rot: Loch und Sichtachse; Ring: Horizont mit N, O, S, W."}, "Casarano (40° N)": {"it": "Casarano (40° N)", "en": "Casarano (40° N)", "es": "Casarano (40° N)", "fr": "Casarano (40° N)", "de": "Casarano (40° N)"}, "Roma (41,9° N)": {"it": "Roma (41,9° N)", "en": "Rome (41.9° N)", "es": "Roma (41,9° N)", "fr": "Rome (41,9° N)", "de": "Rom (41,9° N)"}, "Milano (45,5° N)": {"it": "Milano (45,5° N)", "en": "Milan (45.5° N)", "es": "Milán (45,5° N)", "fr": "Milan (45,5° N)", "de": "Mailand (45,5° N)"}, "Palermo (38,1° N)": {"it": "Palermo (38,1° N)", "en": "Palermo (38.1° N)", "es": "Palermo (38,1° N)", "fr": "Palerme (38,1° N)", "de": "Palermo (38,1° N)"}, "Atene (38,0° N)": {"it": "Atene (38,0° N)", "en": "Athens (38.0° N)", "es": "Atenas (38,0° N)", "fr": "Athènes (38,0° N)", "de": "Athen (38,0° N)"}, "Madrid (40,4° N)": {"it": "Madrid (40,4° N)", "en": "Madrid (40.4° N)", "es": "Madrid (40,4° N)", "fr": "Madrid (40,4° N)", "de": "Madrid (40,4° N)"}, "Parigi (48,9° N)": {"it": "Parigi (48,9° N)", "en": "Paris (48.9° N)", "es": "París (48,9° N)", "fr": "Paris (48,9° N)", "de": "Paris (48,9° N)"}, "Londra (51,5° N)": {"it": "Londra (51,5° N)", "en": "London (51.5° N)", "es": "Londres (51,5° N)", "fr": "Londres (51,5° N)", "de": "London (51,5° N)"}, "Mosca (55,8° N)": {"it": "Mosca (55,8° N)", "en": "Moscow (55.8° N)", "es": "Moscú (55,8° N)", "fr": "Moscou (55,8° N)", "de": "Moskau (55,8° N)"}, "Reykjavík (64,1° N)": {"it": "Reykjavík (64,1° N)", "en": "Reykjavík (64.1° N)", "es": "Reikiavik (64,1° N)", "fr": "Reykjavík (64,1° N)", "de": "Reykjavík (64,1° N)"}, "Tromsø (69,6° N)": {"it": "Tromsø (69,6° N)", "en": "Tromsø (69.6° N)", "es": "Tromsø (69,6° N)", "fr": "Tromsø (69,6° N)", "de": "Tromsø (69,6° N)"}, "New York (40,7° N)": {"it": "New York (40,7° N)", "en": "New York (40.7° N)", "es": "Nueva York (40,7° N)", "fr": "New York (40,7° N)", "de": "New York (40,7° N)"}, "Los Angeles (34,1° N)": {"it": "Los Angeles (34,1° N)", "en": "Los Angeles (34.1° N)", "es": "Los Ángeles (34,1° N)", "fr": "Los Angeles (34,1° N)", "de": "Los Angeles (34,1° N)"}, "Tokyo (35,7° N)": {"it": "Tokyo (35,7° N)", "en": "Tokyo (35.7° N)", "es": "Tokio (35,7° N)", "fr": "Tokyo (35,7° N)", "de": "Tokio (35,7° N)"}, "Il Cairo (30,0° N)": {"it": "Il Cairo (30,0° N)", "en": "Cairo (30.0° N)", "es": "El Cairo (30,0° N)", "fr": "Le Caire (30,0° N)", "de": "Kairo (30,0° N)"}, "Mumbai (19,1° N)": {"it": "Mumbai (19,1° N)", "en": "Mumbai (19.1° N)", "es": "Bombay (19,1° N)", "fr": "Bombay (19,1° N)", "de": "Mumbai (19,1° N)"}, "Singapore (1,4° N)": {"it": "Singapore (1,4° N)", "en": "Singapore (1.4° N)", "es": "Singapur (1,4° N)", "fr": "Singapour (1,4° N)", "de": "Singapur (1,4° N)"}, "Nairobi (1,3° S)": {"it": "Nairobi (1,3° S)", "en": "Nairobi (1.3° S)", "es": "Nairobi (1,3° S)", "fr": "Nairobi (1,3° S)", "de": "Nairobi (1,3° S)"}, "Sydney (33,9° S)": {"it": "Sydney (33,9° S)", "en": "Sydney (33.9° S)", "es": "Sídney (33,9° S)", "fr": "Sydney (33,9° S)", "de": "Sydney (33,9° S)"}, "Buenos Aires (34,6° S)": {"it": "Buenos Aires (34,6° S)", "en": "Buenos Aires (34.6° S)", "es": "Buenos Aires (34,6° S)", "fr": "Buenos Aires (34,6° S)", "de": "Buenos Aires (34,6° S)"}, "Auckland (36,8° S)": {"it": "Auckland (36,8° S)", "en": "Auckland (36.8° S)", "es": "Auckland (36,8° S)", "fr": "Auckland (36,8° S)", "de": "Auckland (36,8° S)"}, "Ushuaia (54,8° S)": {"it": "Ushuaia (54,8° S)", "en": "Ushuaia (54.8° S)", "es": "Ushuaia (54,8° S)", "fr": "Ushuaia (54,8° S)", "de": "Ushuaia (54,8° S)"}, "Equatore (0°)": {"it": "Equatore (0°)", "en": "Equator (0°)", "es": "Ecuador (0°)", "fr": "Équateur (0°)", "de": "Äquator (0°)"}, "Tropico del Cancro (23,4° N)": {"it": "Tropico del Cancro (23,4° N)", "en": "Tropic of Cancer (23.4° N)", "es": "Trópico de Cáncer (23,4° N)", "fr": "Tropique du Cancer (23,4° N)", "de": "Wendekreis des Krebses (23,4° N)"}, "Circolo polare artico (66,6° N)": {"it": "Circolo polare artico (66,6° N)", "en": "Arctic Circle (66.6° N)", "es": "Círculo polar ártico (66,6° N)", "fr": "Cercle polaire arctique (66,6° N)", "de": "Polarkreis (66,6° N)"}, "Polo Nord (90° N)": {"it": "Polo Nord (90° N)", "en": "North Pole (90° N)", "es": "Polo Norte (90° N)", "fr": "Pôle Nord (90° N)", "de": "Nordpol (90° N)"}, "Polo Sud (90° S)": {"it": "Polo Sud (90° S)", "en": "South Pole (90° S)", "es": "Polo Sur (90° S)", "fr": "Pôle Sud (90° S)", "de": "Südpol (90° S)"}, "Lingua": {"it": "Lingua", "en": "Language", "es": "Idioma", "fr": "Langue", "de": "Sprache"}};
+const REV={};for(const it in I18N)for(const l in I18N[it])REV[I18N[it][l]]=it;
+const TITLE={it:"Simulatore solargrafia",en:"Pinhole Solargraphy Simulator",es:"Simulador de solargrafía",fr:"Simulateur de solargraphie",de:"Solargrafie-Simulator"};
+let LANG="it";
+function trKey(t){const it=REV[t]||t;return I18N[it]?it:null}
+function applyLang(){
+ const mo=window.__mo;if(mo)mo.disconnect();
+ const w=document.createTreeWalker(document.body,NodeFilter.SHOW_TEXT);let n;
+ while(n=w.nextNode()){
+  const p=n.parentElement;if(!p||p.closest("script,style"))continue;
+  const raw=n.nodeValue,t=raw.trim();if(!t)continue;const it=trKey(t);if(!it)continue;
+  const tgt=I18N[it][LANG];if(tgt&&tgt!==t){const lead=raw.match(/^\s*/)[0],tail=raw.match(/\s*$/)[0];n.nodeValue=lead+tgt+tail}
+ }
+ document.querySelectorAll("[title]").forEach(e=>{const it=trKey(e.title);if(it&&I18N[it][LANG])e.title=I18N[it][LANG]});
+ document.documentElement.lang=LANG;document.title=TITLE[LANG];
+ if(mo)mo.observe(document.body,{childList:true,subtree:true,characterData:true});
+}
+window.__mo=new MutationObserver(()=>applyLang());
+window.__mo.observe(document.body,{childList:true,subtree:true,characterData:true});
+function setLang(l){LANG=I18N["Lingua"][l]?l:"it";$("lang").value=LANG;try{localStorage.setItem("solar_lang",LANG)}catch(e){}applyLang()}
+$("lang").onchange=e=>setLang(e.target.value);
+try{const saved=localStorage.getItem("solar_lang");if(saved)setLang(saved)}catch(e){}
+<\/script>
+<script>
+(function(){
+ const pv=document.getElementById("pv");if(!pv)return;
+ const home={parent:pv.parentNode,next:pv.nextSibling};
+ const mq=window.matchMedia("(max-width:800px)");
+ function place(){
+  if(mq.matches){const m=document.querySelector("main");if(pv.parentNode!==m){m.insertBefore(pv,m.firstChild)}}
+  else if(pv.parentNode!==home.parent){home.parent.insertBefore(pv,home.next)}
+ }
+ mq.addEventListener?mq.addEventListener("change",place):mq.addListener(place);
+ place();
+})();
+<\/script>
+<script>window.ARX={get V(){return V},get o(){return o},get G(){return MD&&MD.G},get S(){return S},basis:basis,trace:trace,setV:setV,sched:sched,hbs:hbs,run:run};<\/script>
+</body></html>
+</script>
+
 <script>
 "use strict";
-const VERSION = "AR v4 (passo 3b)";
+const VERSION = "AR v5 (passo 4)";
 const $ = id => document.getElementById(id), rad = Math.PI/180, deg = 180/Math.PI;
 
 /* ---------- Testi (aggiungere una lingua = aggiungere un blocco qui) ---------- */
 const TXT = {
  it:{lang:"Lingua",title:"Solargrafia AR",sub:"Punta il telefono: vedi il percorso del sole nel periodo scelto sopra la fotocamera.",
-  beta:"Versione di prova (passo 3b). Su iPhone la bussola è sperimentale.",loc:"Posizione",gps:"Trova la mia posizione",lat:"Latitudine (°)",lon:"Longitudine (°)",
+  beta:"Versione di prova (passo 4). Su iPhone la bussola è sperimentale.",loc:"Posizione",gps:"Trova la mia posizione",lat:"Latitudine (°)",lon:"Longitudine (°)",
   locHelp:"Puoi anche scrivere le coordinate a mano (positiva a nord e a est).",start:"Avvia AR",
   period:"Periodo di esposizione",preset:"Scorciatoia",p1:"21 dic → 21 giu (6 mesi)",p2:"21 giu → 21 dic (6 mesi)",p3:"Anno intero (21 dic → 21 dic)",pc:"Personalizzato",d0:"Inizio",d1:"Fine",
   badPeriod:"Periodo non valido: la fine deve essere dopo l'inizio (massimo 3 anni).",
@@ -155,11 +678,15 @@ const TXT = {
   settings:"Regolazioni",map:"Mappa",diag:"Diagnostica",exit:"Esci",copy:"Copia",copied:"Copiato",
   sunShow:"Mostra le curve del sole",mode:"Quante curve",mMonth:"Una al mese",m2w:"Ogni 2 settimane",m1w:"Ogni settimana",mAll:"Tutti i giorni (simula la solargrafia)",
   legend:"Giallo: solstizi. Arancio: equinozi. Bianco: primo e ultimo giorno. Tratteggiata: oggi. Cerchio: il sole adesso.",
-  fov:"Campo visivo della fotocamera, lato lungo (°)",fovHelp:"Se l'orizzonte non coincide con quello vero quando inclini il telefono, regola questo valore. La taratura precisa arriva nel passo 5.",
-  north:"Correzione del nord (°, positiva verso est)",northHelp:"Dalla bussola del telefono al nord geografico: in Salento la declinazione è di circa +4°. La taratura sul sole arriva nel passo 6.",
-  az:"Az",incl:"Incl",alt:"Alt",sunNow:"Sole ora",below:"sotto l'orizzonte",cards:["N","NE","E","SE","S","SO","O","NO"]},
+  fov:"Campo visivo della fotocamera, lato lungo (°)",fovHelp:"Se l'orizzonte non coincide con quello vero quando inclini il telefono, regola questo valore.",
+  north:"Correzione del nord (°, positiva verso est)",northHelp:"Dalla bussola del telefono al nord geografico: in Salento la declinazione è di circa +4°.",
+  az:"Az",incl:"Incl",alt:"Alt",sunNow:"Sole ora",below:"sotto l'orizzonte",
+  anaLbl:"Analemmi: ore solari medie (es. 6, 9, 12.5)",anaHelp:"Una curva per ogni ora scelta, con un'etichetta per mese (giorno 21). Le parti sotto l'orizzonte non sono mostrate. Valori tra 0 e 24, separati da virgole.",anaNone:"Nessuno",
+  camera:"Camera",simTitle:"Camera e simulatore",realTitle:"Solargrafia realistica",viewLbl:"Cosa mostrare",vLines:"Solo linee",vBoth:"Linee + solargrafia realistica",vReal:"Solo solargrafia realistica",
+  alphaLbl:"Opacità della solargrafia",holeLbl:"Direzione del foro (°: 0 nord, 90 est, 180 sud, 270 ovest)",aimHere:"Usa la direzione del telefono",openSim:"Forma, misure, foro…",
+  calc:"Calcolo della solargrafia in corso… può richiedere qualche secondo.",axis:"asse camera",aimLbl:"Foro",aimOk:"Puntamento corretto ✓",simErr:"Il simulatore non si è caricato.",ready:"Solargrafia pronta.",simFail:"Calcolo non riuscito: ",cards:["N","NE","E","SE","S","SO","O","NO"]},
  en:{lang:"Language",title:"Solargraphy AR",sub:"Point your phone: see the sun's path for the chosen period over the camera view.",
-  beta:"Test version (step 3b). On iPhone the compass is experimental.",loc:"Location",gps:"Find my location",lat:"Latitude (°)",lon:"Longitude (°)",
+  beta:"Test version (step 4). On iPhone the compass is experimental.",loc:"Location",gps:"Find my location",lat:"Latitude (°)",lon:"Longitude (°)",
   locHelp:"You can also type the coordinates by hand (positive north and east).",start:"Start AR",
   period:"Exposure period",preset:"Shortcut",p1:"Dec 21 → Jun 21 (6 months)",p2:"Jun 21 → Dec 21 (6 months)",p3:"Full year (Dec 21 → Dec 21)",pc:"Custom",d0:"Start",d1:"End",
   badPeriod:"Invalid period: the end must be after the start (3 years at most).",
@@ -175,9 +702,13 @@ const TXT = {
   settings:"Adjust",map:"Map",diag:"Diagnostics",exit:"Exit",copy:"Copy",copied:"Copied",
   sunShow:"Show the sun curves",mode:"How many curves",mMonth:"One per month",m2w:"Every 2 weeks",m1w:"Every week",mAll:"Every day (simulates the solargraph)",
   legend:"Yellow: solstices. Orange: equinoxes. White: first and last day. Dashed: today. Circle: the sun right now.",
-  fov:"Camera field of view, long side (°)",fovHelp:"If the horizon does not match the real one when you tilt the phone, adjust this value. Precise calibration comes in step 5.",
-  north:"North correction (°, positive toward east)",northHelp:"From the phone compass to true north: in Salento declination is about +4°. Sun calibration comes in step 6.",
-  az:"Az",incl:"Tilt",alt:"Alt",sunNow:"Sun now",below:"below the horizon",cards:["N","NE","E","SE","S","SW","W","NW"]}
+  fov:"Camera field of view, long side (°)",fovHelp:"If the horizon does not match the real one when you tilt the phone, adjust this value.",
+  north:"North correction (°, positive toward east)",northHelp:"From the phone compass to true north: in Salento declination is about +4°.",
+  az:"Az",incl:"Tilt",alt:"Alt",sunNow:"Sun now",below:"below the horizon",
+  anaLbl:"Analemmas: mean solar hours (e.g. 6, 9, 12.5)",anaHelp:"One curve per chosen hour, with one label per month (day 21). Parts below the horizon are not shown. Values from 0 to 24, comma separated.",anaNone:"None",
+  camera:"Camera",simTitle:"Camera and simulator",realTitle:"Realistic solargraph",viewLbl:"What to show",vLines:"Lines only",vBoth:"Lines + realistic solargraph",vReal:"Realistic solargraph only",
+  alphaLbl:"Solargraph opacity",holeLbl:"Pinhole direction (°: 0 north, 90 east, 180 south, 270 west)",aimHere:"Use the phone direction",openSim:"Shape, size, pinhole…",
+  calc:"Computing the solargraph… it may take a few seconds.",axis:"camera axis",aimLbl:"Pinhole",aimOk:"Aim is correct ✓",simErr:"The simulator did not load.",ready:"Solargraph ready.",simFail:"Calculation failed: ",cards:["N","NE","E","SE","S","SW","W","NW"]}
 };
 let LANG = "it";
 const t = k => (TXT[LANG] && TXT[LANG][k]) || TXT.en[k] || k;
@@ -278,6 +809,9 @@ $("d0").oninput = $("d1").oninput = () => { $("preset").value = "c"; sv("ar_pres
 /* ---------- Curve del sole del periodo ---------- */
 let ARCS = [], TODAY = null, LAT = 40, HAVE_LOC = false;
 let ANA = [], ANA_HOURS = [];   // analemmi: dichiarati qui, prima di ogni uso
+let VIEW = ld("ar_view", "lines"), RALPHA = (+ld("ar_ralpha", "60") || 60)/100;   // vista: lines | both | real
+let SIM = null, SIMW = null, RZ = null, simDirty = true, simOpen = false, simQ = [], simFail = "", CAM = {az: 0, el: 0};
+let rcv = null, rcx = null, rim = null;
 const ANA_COLS = ["#ff6fd8", "#6fb4ff", "#7dff9a", "#ffa86f", "#c79bff", "#ffe36f", "#6ff5e6"];
 let SHOW = ld("ar_show", "1") === "1", MODE = ld("ar_mode", "month");
 function dayArc(dayMs, lat, lon){   // un giorno: dal mezzogiorno solare -12 h a +12 h, un punto ogni 10 minuti, solo sopra l'orizzonte
@@ -434,6 +968,7 @@ async function startAR(){
   $("vid").srcObject = stream;
   try{ await $("vid").play(); }catch(e){}
   buildArcs(la);
+  if(SIM) pushToSim(); else if(VIEW !== "lines") ensureSim();
   try{ if(navigator.wakeLock) wake = await navigator.wakeLock.request("screen"); }catch(e){}
   $("home").hidden = true; $("ar").hidden = false;
   $("mini").hidden = ld("ar_map", "1") !== "1";
@@ -441,6 +976,7 @@ async function startAR(){
 }
 function stopAR(){
   running = false; cancelAnimationFrame(raf); unbindSensors();
+  if(simOpen){ simOpen = false; $("sim").classList.add("off"); pullFromSim(); }
   if(stream){ stream.getTracks().forEach(tr => tr.stop()); stream = null; }
   try{ if(wake){ wake.release(); wake = null; } }catch(e){}
   $("ar").hidden = true; $("home").hidden = false;
@@ -468,6 +1004,20 @@ const anaApply = () => { ANA_HOURS = parseHours($("anaH").value); sv("ar_ana", A
 $("anaH").onchange = anaApply;
 $("anaDef").onclick = () => { $("anaH").value = "6,7,8,9,10,11,12,13,14,15,16,17,18"; anaApply(); };
 $("anaNone").onclick = () => { $("anaH").value = ""; anaApply(); };
+/* Solargrafia realistica: vista, opacità, direzione del foro */
+$("view").value = VIEW; $("ralpha").value = Math.round(RALPHA*100); $("ralphaVal").textContent = Math.round(RALPHA*100) + "%";
+$("view").onchange = e => { VIEW = e.target.value; sv("ar_view", VIEW); if(VIEW !== "lines"){ ensureSim(); if(SIMW) pushToSim(); } };
+$("ralpha").oninput = e => { RALPHA = +e.target.value/100; $("ralphaVal").textContent = e.target.value + "%"; sv("ar_ralpha", e.target.value); };
+$("holeAz").onchange = e => { const v = num(e.target.value); if(!isFinite(v)) return; withSim(X => { X.V.hd = wrap360(v); X.hbs(); X.sched(); }); };
+$("aimHere").onclick = () => withSim(X => { X.V.hd = Math.round(CAM.az*10)/10; X.setV("tl", Math.max(-90, Math.min(90, CAM.el))); X.hbs(); X.sched(); $("holeAz").value = X.V.hd; });
+$("openSim").onclick = $("btnSim").onclick = openSim;
+document.querySelectorAll("[data-close]").forEach(b => b.onclick = () => {
+  const k = b.dataset.close;
+  if(k === "panel") $("panel").hidden = true;
+  else if(k === "diag"){ $("diag").hidden = true; $("diagBtns").hidden = true; }
+  else if(k === "mini"){ $("mini").hidden = true; sv("ar_map", "0"); $("miniX").hidden = true; }
+  else if(k === "sim") closeSim();
+});
 $("showSun").onchange = e => { SHOW = e.target.checked; sv("ar_show", SHOW ? "1" : "0"); };
 $("mode").onchange = e => { MODE = e.target.value; sv("ar_mode", MODE); };
 $("btnSet").onclick = () => { const o = $("panel").hidden; $("panel").hidden = !o; if(o){ $("diag").hidden = true; $("diagBtns").hidden = true; } };
@@ -498,6 +1048,20 @@ function buildAnalemmas(la){
     ANA.push({v, n, lbl, col: ANA_COLS[k % ANA_COLS.length], h});
   });
 }
+/* Come arcPath, ma interrompe la curva quando il sole è sotto l'orizzonte */
+function anaPath(an, A, fl){
+  const v = an.v, r = A.r, u = A.u, f = A.f; let pen = false;
+  cx.beginPath();
+  for(let i = 0; i < an.n; i++){
+    const x = v[3*i], y = v[3*i+1], z = v[3*i+2];
+    if(z < 0){ pen = false; continue; }
+    const zc = x*f[0] + y*f[1] + z*f[2];
+    if(zc < 0.05){ pen = false; continue; }
+    const px = W/2 + (x*r[0] + y*r[1] + z*r[2])/zc*fl, py = H/2 - (x*u[0] + y*u[1] + z*u[2])/zc*fl;
+    pen ? cx.lineTo(px, py) : cx.moveTo(px, py); pen = true;
+  }
+  cx.stroke();
+}
 /* Proietta il punto i di un analemma; null se dietro la fotocamera */
 function anaPoint(an, i, A, fl){
   const x = an.v[3*i], y = an.v[3*i+1], z = an.v[3*i+2], zc = x*A.f[0] + y*A.f[1] + z*A.f[2];
@@ -507,15 +1071,106 @@ function anaPoint(an, i, A, fl){
 function drawAnalemmas(A, fl){
   if(!ANA.length) return;
   cx.setLineDash([]);
-  for(const an of ANA){ cx.strokeStyle = an.col; cx.lineWidth = 2; arcPath(an, A, fl); }
+  for(const an of ANA){ cx.strokeStyle = an.col; cx.lineWidth = 2; anaPath(an, A, fl); }
   cx.font = "700 12px system-ui,sans-serif"; cx.lineWidth = 3; cx.strokeStyle = "#000b";
   for(const an of ANA){
     cx.fillStyle = an.col;
     for(const L of an.lbl){
+      if(an.v[3*L.i+2] < 0) continue;                       // sotto l'orizzonte: niente etichetta
       const p = anaPoint(an, L.i, A, fl); if(!p) continue;
       cx.strokeText(L.text, p[0], p[1] - 8); cx.fillText(L.text, p[0], p[1] - 8);
     }
   }
+}
+
+/* ---------- Solargrafia realistica: il simulatore v27 gira in una finestra interna ---------- */
+const simHtml = () => $("simSrc").textContent.replace(/<\\\/script/g, "</script");
+function ensureSim(){
+  if(SIM) return;
+  const fr = document.createElement("iframe"); fr.id = "simFrame"; fr.title = "Simulatore";
+  fr.addEventListener("load", () => {
+    SIMW = fr.contentWindow;
+    if(!SIMW.ARX){ simFail = t("simErr"); return; }
+    SIMW.__arGrab = simGrab; SIMW.__arDirty = () => { simDirty = true; };
+    pushToSim(true);
+    simQ.splice(0).forEach(fn => { try{ fn(SIMW.ARX); }catch(e){} });
+  });
+  fr.srcdoc = simHtml(); $("simBody").appendChild(fr); SIM = fr;
+}
+function withSim(fn){ if(SIMW && SIMW.ARX) fn(SIMW.ARX); else { simQ.push(fn); ensureSim(); } }
+/* Chiamata dal simulatore a fine calcolo: copia l'immagine (ancora non ruotata) e la geometria usata */
+function simGrab(){
+  const X = SIMW.ARX, G = X.G, c = SIMW.document.getElementById("c1");
+  if(!G || !c || !c.width) return;
+  const id = c.getContext("2d").getImageData(0, 0, c.width, c.height), B = X.basis();
+  RZ = {px: id.data, w: id.width, h: id.height, Xm: G.Xm, y1: G.y1, sc: G.sc, B: {x: [...B.x], u: [...B.u], z: [...B.z]}};
+  simDirty = false; simFail = "";
+  const h = $("holeAz"); if(h && document.activeElement !== h) h.value = +X.V.hd.toFixed(1);
+}
+/* Porta nel simulatore luogo e periodo dell'AR; ricalcola solo se qualcosa è cambiato */
+function pushToSim(force){
+  if(!SIMW || !SIMW.ARX) return;
+  const X = SIMW.ARX, D = SIMW.document, la = readLoc(); let ch = !!force;
+  if(la && Math.abs(X.V.lat - la.lat) > 1e-6){ X.setV("lat", la.lat); ch = true; }
+  const d0 = D.getElementById("d0"), d1 = D.getElementById("d1");
+  if($("d0").value && $("d1").value && (d0.value !== $("d0").value || d1.value !== $("d1").value)){
+    d0.value = $("d0").value; d1.value = $("d1").value; D.getElementById("pr").value = 3; ch = true;
+  }
+  if(ch || simDirty) X.sched();
+}
+/* Alla chiusura della finestra: periodo e luogo scelti nel simulatore tornano nell'AR */
+function pullFromSim(){
+  if(!SIMW || !SIMW.ARX) return;
+  const X = SIMW.ARX, D = SIMW.document, a = D.getElementById("d0").value, b = D.getElementById("d1").value;
+  let redo = false;
+  if(a && b && (a !== $("d0").value || b !== $("d1").value)){
+    const o0 = $("d0").value, o1 = $("d1").value;
+    $("d0").value = a; $("d1").value = b;
+    if(validPeriod()){ $("preset").value = "c"; sv("ar_preset", "c"); sv("ar_d0", a); sv("ar_d1", b); redo = true; }
+    else { $("d0").value = o0; $("d1").value = o1; }
+  }
+  const la = readLoc();
+  if(la && Math.abs(X.V.lat - la.lat) > 5e-4 && Math.abs(X.V.lat) <= 90){ $("lat").value = (+X.V.lat).toFixed(5); saveLoc(); redo = true; }
+  if(redo) buildArcs(readLoc());
+  const h = $("holeAz"); if(h) h.value = +X.V.hd.toFixed(1);
+}
+function openSim(){ ensureSim(); simOpen = true; $("sim").classList.remove("off"); $("panel").hidden = true; $("diag").hidden = true; $("diagBtns").hidden = true; }
+function closeSim(){ if(!simOpen) return; simOpen = false; $("sim").classList.add("off"); pullFromSim(); }
+/* Sovrappone la solargrafia: per ogni punto dello schermo si calcola la direzione nel cielo e, con la stessa ottica del simulatore, il punto della carta */
+function drawReal(A, fl){
+  const step = 3, gw = Math.ceil(W/step), gh = Math.ceil(H/step);
+  if(!rcv || rcv.width !== gw || rcv.height !== gh){ rcv = document.createElement("canvas"); rcv.width = gw; rcv.height = gh; rcx = rcv.getContext("2d"); rim = rcx.createImageData(gw, gh); }
+  const X = SIMW.ARX, tr = X.trace, o = X.o, B = RZ.B, bx = B.x, bu = B.u, bz = B.z, src = RZ.px, sw = RZ.w, sh = RZ.h, Xm = RZ.Xm, y1 = RZ.y1, sc = RZ.sc, out = rim.data;
+  const f = A.f, r = A.r, u = A.u; let j = 0;
+  for(let gy = 0; gy < gh; gy++){
+    const b = (H/2 - (gy + 0.5)*step)/fl;
+    for(let gx = 0; gx < gw; gx++, j += 4){
+      const a = ((gx + 0.5)*step - W/2)/fl;
+      let e = f[0] + r[0]*a + u[0]*b, n = f[1] + r[1]*a + u[1]*b, z = f[2] + r[2]*a + u[2]*b;
+      const m = 1/Math.hypot(e, n, z); e *= m; n *= m; z *= m;
+      out[j+3] = 0;
+      if(tr(e*bx[0] + n*bx[1] + z*bx[2], e*bu[0] + n*bu[1] + z*bu[2], e*bz[0] + n*bz[1] + z*bz[2])){
+        const px = Math.floor((o.X + Xm)*sc), py = Math.floor((y1 - o.Y)*sc);
+        if(px >= 0 && px < sw && py >= 0 && py < sh){ const k = 4*(py*sw + px); out[j] = src[k]; out[j+1] = src[k+1]; out[j+2] = src[k+2]; out[j+3] = 255; }
+      }
+    }
+  }
+  rcx.putImageData(rim, 0, 0);
+  cx.globalAlpha = RALPHA; cx.imageSmoothingEnabled = true; cx.drawImage(rcv, 0, 0, W, H); cx.globalAlpha = 1;
+}
+/* Assistente di puntamento: dove guarda il foro della camera e di quanto manca */
+function drawAim(P, camAz, camEl){
+  const e = $("hudAim");
+  if(!SIMW || !SIMW.ARX){ if(e.textContent) e.textContent = ""; return; }
+  const V = SIMW.ARX.V, dA = wrap180(V.hd - camAz), dE = V.tl - camEl;
+  e.textContent = (Math.abs(dA) < 0.5 && Math.abs(dE) < 0.5) ? t("aimOk")
+    : t("aimLbl") + ": " + t("az") + " " + fm(V.hd) + "°, " + t("incl") + " " + (V.tl >= 0 ? "+" : "") + fm(V.tl, 0) + "°   " + (dA >= 0 ? "→ " : "← ") + fm(Math.abs(dA)) + "°  " + (dE >= 0 ? "↑ " : "↓ ") + fm(Math.abs(dE)) + "°";
+  const p = P(V.hd, V.tl); if(!p) return;
+  cx.setLineDash([]); cx.lineWidth = 2.5; cx.strokeStyle = "#8fe3ff"; cx.beginPath(); cx.arc(p[0], p[1], 20, 0, 2*Math.PI);
+  cx.moveTo(p[0] - 30, p[1]); cx.lineTo(p[0] - 20, p[1]); cx.moveTo(p[0] + 20, p[1]); cx.lineTo(p[0] + 30, p[1]);
+  cx.moveTo(p[0], p[1] - 30); cx.lineTo(p[0], p[1] - 20); cx.moveTo(p[0], p[1] + 20); cx.lineTo(p[0], p[1] + 30); cx.stroke();
+  cx.font = "700 12px system-ui,sans-serif"; cx.fillStyle = "#8fe3ff"; cx.strokeStyle = "#000b"; cx.lineWidth = 3;
+  cx.strokeText(t("axis"), p[0], p[1] + 44); cx.fillText(t("axis"), p[0], p[1] + 44);
 }
 
 /* ---------- Disegno ---------- */
@@ -612,6 +1267,8 @@ function draw(){
   const camAz = wrap360(Math.atan2(A.f[0], A.f[1])*deg), camEl = Math.asin(Math.max(-1, Math.min(1, A.f[2])))*deg;
   const sun = HAVE_LOC ? sunPos(now, readLoc() ? readLoc().lat : LAT, readLoc() ? readLoc().lon : 0) : {az: 0, el: -90};
   cx.lineJoin = "round"; cx.textAlign = "center"; cx.textBaseline = "middle";
+  CAM.az = camAz; CAM.el = camEl;
+  if(VIEW !== "lines" && SIMW && RZ && !simDirty) drawReal(A, fl);   // solargrafia realistica sotto le linee
   // linee di altezza
   cx.font = "600 13px system-ui,sans-serif"; cx.setLineDash([6,8]); cx.lineWidth = 1; cx.strokeStyle = "#ffffff77"; cx.fillStyle = "#fff";
   for(const el of [-30,-15,15,30,45,60,75]){
@@ -619,7 +1276,7 @@ function draw(){
     const p = P(Math.round(camAz/10)*10, el); if(p) cx.fillText(el + "°", p[0], p[1] - 9);
   }
   // curve del sole del periodo
-  if(SHOW && HAVE_LOC){
+  if(SHOW && HAVE_LOC && VIEW !== "real"){
     const n = ARCS.length; cx.setLineDash([]);
     for(let pass = 0; pass < 2; pass++) for(let i = 0; i < n; i++){        // prima le curve semplici, poi solstizi/equinozi/estremi sopra
       const a = ARCS[i], key = !!a.kind || i === 0 || i === n - 1;
@@ -632,10 +1289,11 @@ function draw(){
       if(selected(a, i, n) && (key || MODE !== "all")){ cx.fillStyle = styleFor(a, i, n)[0].slice(0, 7); arcLabel(a, A, fl, dateLabel(a.t)); }
     }
   }
-  if(HAVE_LOC && ANA.length) drawAnalemmas(A, fl);
+  if(HAVE_LOC && ANA.length && VIEW !== "real") drawAnalemmas(A, fl);
   // arco di oggi (tratteggiato) e sole adesso
   if(HAVE_LOC && TODAY){ cx.setLineDash([8,6]); cx.lineWidth = 2; cx.strokeStyle = "#ffffffdd"; arcPath(TODAY, A, fl); cx.setLineDash([]); }
   if(HAVE_LOC) drawSun(A, P, sun);
+  drawAim(P, camAz, camEl);
   // orizzonte
   cx.setLineDash([]); cx.lineWidth = 2.5; cx.strokeStyle = "#7fd6e8"; polyline(P, 0, 360, 2, 0);
   // gradi lungo l'orizzonte: tacche ogni 5°, numeri ogni 30°, lettere ai punti cardinali
@@ -657,6 +1315,7 @@ function draw(){
   // testi in alto e mini-mappa
   $("hudMain").textContent = t("az") + " " + fm(camAz) + "° " + t("cards")[Math.round(camAz/45) % 8] + "   " + t("incl") + " " + (camEl >= 0 ? "+" : "") + fm(camEl) + "°";
   $("hudSun").textContent = HAVE_LOC ? t("sunNow") + ": " + t("az") + " " + fm(sun.az) + "°  " + t("alt") + " " + fm(sun.el) + "°" + (sun.el < -0.8 ? " (" + t("below") + ")" : "") : "";
+  $("miniX").hidden = mini.hidden;
   drawMini(camAz, camEl, 2*Math.atan(W/2/fl)*deg, 2*Math.atan(H/2/fl)*deg, sun);
 }
 function warnings(){
@@ -664,7 +1323,9 @@ function warnings(){
   if(src === "none" && now - startedAt > 2500) w = t("warnNoSensor");
   else if(src === "relative") w = t("warnRel");
   else if(!HAVE_LOC) w = t("needLoc");
+  if(VIEW !== "lines" && SIM && simDirty) w = simFail ? t("simFail") + simFail : t("calc");
   $("hudWarn").textContent = w;
+  const rm = $("realMsg"); if(rm) rm.textContent = VIEW === "lines" && !SIM ? "" : (simDirty ? t("calc") : t("ready"));
 }
 function diagText(){
   const v = $("vid"), la = readLoc(), A = F ? axes() : null;
@@ -686,6 +1347,7 @@ function diagText(){
     "periodo: " + $("d0").value + " → " + $("d1").value + ", giorni calcolati: " + ARCS.length + ", modo: " + MODE + (SHOW ? "" : " (spento)"),
     "sole ora (NOAA): " + (s ? "az " + fm(s.az, 2) + "  alt " + fm(s.el, 2) : "-"),
     "ora UTC: " + new Date().toISOString(),
+    "simulatore: " + (SIM ? (simDirty ? "in calcolo/non pronto" : "pronto") + (SIMW && SIMW.ARX ? ", forma " + SIMW.ARX.S + ", foro az " + fm(SIMW.ARX.V.hd) + " incl " + fm(SIMW.ARX.V.tl, 0) : "") + (simFail ? " (" + simFail + ")" : "") : "non caricato") + ", vista: " + VIEW,
     "lingua: " + LANG
   ].join("\n");
 }
@@ -696,7 +1358,8 @@ function loop(){
   if(now - lastRateT > 1000){ evRate = evCount; evCount = 0; lastRateT = now; }
   if(now - lastEvT < 1000) tries = 0;                                                  // i dati arrivano: tutto a posto
   else if(now - lastBind > Math.min(2500, 700 + tries*300)){ tries++; bindSensors(); }   // nessun dato (o dati fermi): riaggancia, senza limite
-  draw(); warnings();
+  if(!simOpen) draw();
+  warnings();
   if(!$("diag").hidden && now - lastDiagT > 400){ $("diag").textContent = diagText(); lastDiagT = now; }
   raf = requestAnimationFrame(loop);
 }

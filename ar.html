@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Solargrafia AR</title>
-<!-- Solargrafia AR - passo 3 (versione di prova). Licenza MIT. -->
+<!-- Solargrafia AR - passo 3b (versione di prova). Licenza MIT. -->
 <style>
 :root{--bg:#0f1a24;--fg:#e8edf2;--mut:#93a3b3;--ac:#ffc83d;--ln:#7fd6e8;--bd:#2a3a4a}
 *{box-sizing:border-box}
@@ -55,7 +55,7 @@ label{display:block;margin:10px 0 4px;color:var(--mut);font-size:14px}
   </select>
   <h1 data-i="title">Solargrafia AR</h1>
   <p class="sub" data-i="sub">Punta il telefono: vedi il percorso del sole nel periodo scelto sopra la fotocamera.</p>
-  <p class="note" data-i="beta">Versione di prova (passo 3). Su iPhone la bussola è sperimentale.</p>
+  <p class="note" data-i="beta">Versione di prova (passo 3b). Su iPhone la bussola è sperimentale.</p>
 
   <div class="box">
     <h2 data-i="loc">Posizione</h2>
@@ -133,13 +133,13 @@ label{display:block;margin:10px 0 4px;color:var(--mut);font-size:14px}
 
 <script>
 "use strict";
-const VERSION = "AR v3 (passo 3)";
+const VERSION = "AR v4 (passo 3b)";
 const $ = id => document.getElementById(id), rad = Math.PI/180, deg = 180/Math.PI;
 
 /* ---------- Testi (aggiungere una lingua = aggiungere un blocco qui) ---------- */
 const TXT = {
  it:{lang:"Lingua",title:"Solargrafia AR",sub:"Punta il telefono: vedi il percorso del sole nel periodo scelto sopra la fotocamera.",
-  beta:"Versione di prova (passo 3). Su iPhone la bussola è sperimentale.",loc:"Posizione",gps:"Trova la mia posizione",lat:"Latitudine (°)",lon:"Longitudine (°)",
+  beta:"Versione di prova (passo 3b). Su iPhone la bussola è sperimentale.",loc:"Posizione",gps:"Trova la mia posizione",lat:"Latitudine (°)",lon:"Longitudine (°)",
   locHelp:"Puoi anche scrivere le coordinate a mano (positiva a nord e a est).",start:"Avvia AR",
   period:"Periodo di esposizione",preset:"Scorciatoia",p1:"21 dic → 21 giu (6 mesi)",p2:"21 giu → 21 dic (6 mesi)",p3:"Anno intero (21 dic → 21 dic)",pc:"Personalizzato",d0:"Inizio",d1:"Fine",
   badPeriod:"Periodo non valido: la fine deve essere dopo l'inizio (massimo 3 anni).",
@@ -159,7 +159,7 @@ const TXT = {
   north:"Correzione del nord (°, positiva verso est)",northHelp:"Dalla bussola del telefono al nord geografico: in Salento la declinazione è di circa +4°. La taratura sul sole arriva nel passo 6.",
   az:"Az",incl:"Incl",alt:"Alt",sunNow:"Sole ora",below:"sotto l'orizzonte",cards:["N","NE","E","SE","S","SO","O","NO"]},
  en:{lang:"Language",title:"Solargraphy AR",sub:"Point your phone: see the sun's path for the chosen period over the camera view.",
-  beta:"Test version (step 3). On iPhone the compass is experimental.",loc:"Location",gps:"Find my location",lat:"Latitude (°)",lon:"Longitude (°)",
+  beta:"Test version (step 3b). On iPhone the compass is experimental.",loc:"Location",gps:"Find my location",lat:"Latitude (°)",lon:"Longitude (°)",
   locHelp:"You can also type the coordinates by hand (positive north and east).",start:"Start AR",
   period:"Exposure period",preset:"Shortcut",p1:"Dec 21 → Jun 21 (6 months)",p2:"Jun 21 → Dec 21 (6 months)",p3:"Full year (Dec 21 → Dec 21)",pc:"Custom",d0:"Start",d1:"End",
   badPeriod:"Invalid period: the end must be after the start (3 years at most).",
@@ -325,6 +325,7 @@ const dateLabel = ms => new Date(ms).toLocaleDateString(LANG === "it" ? "it-IT" 
 
 /* ---------- Stato dei sensori ---------- */
 let stream = null, wake = null, running = false, raf = 0;
+let lastEvT = 0, quatT = 0, quatBad = false, quatErr = "";   // ultimo dato ricevuto, ultimo dato del quaternione, quaternione non utilizzabile
 let src = "none";            // none | absolute | relative | ios
 let F = null;                // assi del telefono filtrati {X,Y,Z} nel sistema Est-Nord-Alto
 let iosOff = null;           // scarto di direzione per iPhone (gradi)
@@ -366,13 +367,14 @@ function feedMat(X, Y, Z, compass){
 }
 function onAbs(e){
   if(e.alpha == null) return;
-  src = "absolute"; evCount++; lastRaw = {a:e.alpha, b:e.beta, g:e.gamma}; lastHead = null;
+  if(performance.now() - quatT < 400) return;   // il quaternione è attivo: non mescolare le due sorgenti
+  src = "absolute"; evCount++; lastEvT = performance.now(); lastRaw = {a:e.alpha, b:e.beta, g:e.gamma}; lastHead = null;
   feed(e.alpha, e.beta, e.gamma, null);
 }
 function onRel(e){
   if(src === "absolute" || e.alpha == null) return;
   const h = e.webkitCompassHeading;
-  src = (h != null) ? "ios" : "relative"; evCount++; lastRaw = {a:e.alpha, b:e.beta, g:e.gamma}; lastHead = (h != null) ? h : null;
+  src = (h != null) ? "ios" : "relative"; evCount++; lastEvT = performance.now(); lastRaw = {a:e.alpha, b:e.beta, g:e.gamma}; lastHead = (h != null) ? h : null;
   feed(e.alpha, e.beta, e.gamma, (h != null) ? h : null);
 }
 /* Registrazione dei sensori; si ripete se non arrivano dati (a volte Chrome non li avvia alla prima apertura) */
@@ -387,10 +389,10 @@ function startQuatSensor(){
       const X = [1-2*(y*y+z*z), 2*(x*y+z*w), 2*(x*z-y*w)];
       const Y = [2*(x*y-z*w), 1-2*(x*x+z*z), 2*(y*z+x*w)];
       const Z = [2*(x*z+y*w), 2*(y*z-x*w), 1-2*(x*x+y*y)];
-      src = "absolute"; evCount++; lastHead = null;
+      src = "absolute"; evCount++; lastHead = null; quatT = lastEvT = performance.now();
       feedMat(X, Y, Z, null);
     });
-    s.addEventListener("error", () => { try{ s.stop(); }catch(e){} absSensor = null; });   // il ciclo di riserva riprova
+    s.addEventListener("error", ev => { quatBad = true; quatErr = (ev && ev.error && ev.error.name) || "errore"; try{ s.stop(); }catch(e){} absSensor = null; bindSensors(); });   // passa agli eventi classici
     s.start(); absSensor = s; return true;
   }catch(e){ return false; }
 }
@@ -401,9 +403,9 @@ function unbindSensors(){
 }
 function bindSensors(){
   unbindSensors();
-  if(startQuatSensor()){ bound = true; lastBind = performance.now(); return; }   // Android: quaternione
+  if(!quatBad) startQuatSensor();                                                // Android: quaternione
   if("ondeviceorientationabsolute" in window) window.addEventListener("deviceorientationabsolute", onAbs, true);
-  window.addEventListener("deviceorientation", onRel, true);                     // iPhone e riserva
+  window.addEventListener("deviceorientation", onRel, true);                     // sempre attivi: riserva e iPhone
   bound = true; lastBind = performance.now();
 }
 
@@ -420,7 +422,7 @@ async function startAR(){
       if(await DeviceOrientationEvent.requestPermission() !== "granted"){ msg.textContent = t("errSensor"); return; }
     }
   }catch(e){ msg.textContent = t("errSensor"); return; }
-  src = "none"; F = null; iosOff = null; evCount = 0; evRate = 0; tries = 0;
+  src = "none"; F = null; iosOff = null; evCount = 0; evRate = 0; tries = 0; lastEvT = performance.now(); quatT = 0; quatBad = false; quatErr = "";
   bindSensors();                 // subito dopo il tocco, prima della richiesta della fotocamera
   try{
     stream = await navigator.mediaDevices.getUserMedia({video: {facingMode: {ideal: "environment"}, width: {ideal: 1920}, height: {ideal: 1080}}, audio: false});
@@ -445,6 +447,9 @@ function stopAR(){
 }
 $("startBtn").onclick = startAR;
 $("btnExit").onclick = stopAR;
+const kick = () => { if(running && performance.now() - lastEvT > 700){ tries = 0; bindSensors(); } };   // riaggancia solo se i dati sono fermi
+window.addEventListener("focus", kick); window.addEventListener("pageshow", kick);
+$("vid").addEventListener("playing", kick); $("ar").addEventListener("pointerdown", kick);
 document.addEventListener("visibilitychange", async () => {   // al ritorno in primo piano: sensori e blocco schermo di nuovo attivi
   if(running && document.visibilityState === "visible"){
     tries = 0; bindSensors();
@@ -669,7 +674,8 @@ function diagText(){
     "pagina sicura (https): " + window.isSecureContext,
     "browser: " + navigator.userAgent,
     "sorgente sensori: " + src + (src === "ios" ? " (scarto bussola " + (iosOff === null ? "-" : fm(iosOff) + "°") + ")" : "") + ", registrazioni di riserva: " + tries,
-    "eventi al secondo: " + evRate,
+    "eventi al secondo: " + evRate + ", ultimo dato: " + (lastEvT ? Math.round(performance.now() - lastEvT) + " ms fa" : "-"),
+    "sensore quaternione: " + (typeof AbsoluteOrientationSensor === "undefined" ? "non disponibile" : quatBad ? "non utilizzabile (" + quatErr + ")" : absSensor ? "attivo" : "spento"),
     "alpha/beta/gamma: " + (lastRaw.a != null ? fm(lastRaw.a) + " / " + fm(lastRaw.b) + " / " + fm(lastRaw.g) : "-"),
     "webkitCompassHeading: " + (lastHead != null ? fm(lastHead) : "-"),
     "direzione calcolata (az): " + (isNaN(camAz) ? "-" : fm(camAz)),
@@ -688,7 +694,8 @@ function loop(){
   if(!running) return;
   const now = performance.now();
   if(now - lastRateT > 1000){ evRate = evCount; evCount = 0; lastRateT = now; }
-  if(src === "none" && now - lastBind > Math.min(2000, 500 + tries*250)){ tries++; bindSensors(); }   // riprova con attesa crescente, senza limite
+  if(now - lastEvT < 1000) tries = 0;                                                  // i dati arrivano: tutto a posto
+  else if(now - lastBind > Math.min(2500, 700 + tries*300)){ tries++; bindSensors(); }   // nessun dato (o dati fermi): riaggancia, senza limite
   draw(); warnings();
   if(!$("diag").hidden && now - lastDiagT > 400){ $("diag").textContent = diagText(); lastDiagT = now; }
   raf = requestAnimationFrame(loop);
